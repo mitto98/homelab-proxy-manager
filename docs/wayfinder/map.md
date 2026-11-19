@@ -59,10 +59,16 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - `web/dist` is not committed. CI builds it in the GoReleaser pre-build step, and a committed placeholder file keeps `go build` working from a fresh clone.
   - The API is described by an OpenAPI 3 spec in the repo. Go server types are generated with `oapi-codegen` and TypeScript client types with `openapi-typescript`.
   - English only in v1, with no i18n library.
+- Frontend (round 2):
+  - Vue Router for pages; Pinia only for the signed-in user and UI preferences, never for server data.
+  - Server data through TanStack Query for Vue (`@tanstack/vue-query`) over the typed client; per-host Traefik status is polled on an interval.
+  - Forms use TanStack Form for Vue (`@tanstack/vue-form`) with Zod schemas, not vee-validate. shadcn-vue still supplies the visual components. The server remains the final authority on validation.
+  - Light and dark themes, following the system setting by default with a manual toggle.
+  - Vitest with Vue Test Utils for unit and component tests, a few Playwright end-to-end tests against the built binary, ESLint with Prettier. CI blocks merging on type-check, lint and tests.
+- Frontend is resolved.
 
 ## Not yet specified
 
-- Frontend details: routing, data fetching and state, forms and validation, dark mode, tests, lint.
 - Wildcard domains: how a host with `*.example.com` becomes a router rule and `tls.domains` (DNS challenge only).
 - How DNS-provider credentials reach Traefik's environment, and what that means for supervisor restarts.
 - Backup and restore. In Docker one `/data` volume is a complete backup. On packages a backup needs both the SQLite file and `acme.json`, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.

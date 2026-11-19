@@ -45,14 +45,22 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - HSTS uses the `headers` middleware; skip-TLS-verify uses a `serversTransport`; basic auth uses bcrypt hashes.
   - Traefik's API is enabled on a loopback-only port so the Panel can show per-host active or failed status and the error.
   - The Panel listens on its own port (default 81), not routed through Traefik by default, so it stays reachable if Traefik fails.
+- Packaging:
+  - Everything is named `homelab-proxy-manager`: binary, packages, system user, `/etc/homelab-proxy-manager/`, `/var/lib/homelab-proxy-manager/`.
+  - GoReleaser on GitHub Actions for each `vX.Y.Z` tag builds the linux amd64 and arm64 binaries, nfpm `.deb` and `.rpm` packages, and the multi-arch Docker image. The version comes from the tag and is embedded in the binary.
+  - v1 distribution: packages as GitHub Release assets with a signed checksums file, Docker image on GitHub Container Registry. Hosted apt/yum repositories are deferred.
+  - Package services: a dedicated system user; `homelab-proxy-manager.service`, `homelab-proxy-manager-traefik.service` and a path unit that restarts Traefik when the generated static config changes. The Traefik unit has `CAP_NET_BIND_SERVICE`. The Traefik path defaults to `/usr/local/bin/traefik`, configurable in an environment file. No `Depends:` on a Traefik package; the unit fails with a clear message if the binary is missing and the post-install script prints install instructions.
+  - Supported targets: Debian 12+, Ubuntu 22.04+, Fedora (current), RHEL-family 9+, all with systemd, on amd64 and arm64.
+  - Upgrades: config files keep local edits, migrations run at Panel start (never in package scripts), removal keeps `/var/lib/homelab-proxy-manager` including the database, secret key and `acme.json`.
+  - Docker image: one `/data` volume holds the database, secret key, generated config and `acme.json`; ports 80, 443, 81; tags `latest`, `X.Y.Z`, `X.Y`; ships a compose example.
 
 ## Not yet specified
 
 - Frontend framework and build tooling.
 - Wildcard domains: how a host with `*.example.com` becomes a router rule and `tls.domains` (DNS challenge only).
 - How DNS-provider credentials reach Traefik's environment, and what that means for supervisor restarts.
-- Backup and restore. A full backup must include the SQLite file and the `acme.json` volume, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
-- Package build pipeline (nfpm or similar) and release process.
+- Backup and restore. In Docker one `/data` volume is a complete backup. On packages a backup needs both the SQLite file and `acme.json`, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
+- Release signing: which key or keyless method signs the checksums file.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.
 
 ## Out of scope

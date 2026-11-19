@@ -8,7 +8,9 @@
 
 **Redirection Host** — A domain that redirects visitors to another URL instead of forwarding to an upstream.
 
-**Certificate** — TLS credentials for one or more domains, either issued automatically (Let's Encrypt) or uploaded by an administrator.
+**ACME Resolver** — A saved way of obtaining Let's Encrypt certificates automatically: a contact email and a challenge method, with DNS provider credentials when needed.
+
+**Custom Certificate** — A TLS certificate and private key that an administrator uploaded, used instead of an automatically issued one.
 
 **Access List** — A named set of rules (allowed users or IP ranges) that can be attached to a Proxy Host to restrict who may reach it.
 

@@ -23,13 +23,23 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
 - Version compatibility: the Panel declares a supported Traefik v3.x range and warns at startup when outside it.
 - Authentication: local users, password login, cookie sessions, first-run admin setup. OIDC and API tokens deferred.
 - API and UI: JSON REST API under `/api`, embedded SPA via `embed.FS`.
+- Data model (round 1):
+  - One `hosts` table with a `kind` column (`proxy` or `redirect`); domains in a child `host_domains` table with a unique constraint across all hosts.
+  - One upstream per Proxy Host, stored as columns. Multiple upstreams deferred.
+  - Host options limited to what Traefik supports natively: force HTTPS redirect, HSTS with include-subdomains, upstream `http`/`https` with skip-TLS-verify, enabled switch. No free-form advanced config in v1.
+  - Certificates split in two: `acme_resolvers` (name, email, challenge type, encrypted DNS credentials) and `custom_certificates` (PEM chain, encrypted key, domains, expiry). A host references at most one. Issued ACME certificates stay in Traefik's `acme.json` on a persistent volume.
+  - Private keys and DNS credentials are encrypted at rest with AES-GCM, using a key generated at first run into a 0600 file in the data directory.
+  - Access Lists combine basic-auth credentials and IP allow/deny rules, with AND semantics only in v1 (Traefik middlewares chain; NPM's "satisfy any" is not supported).
+  - Two roles: `admin` and `viewer` (read-only), as a `role` column on `users`.
+  - The database is the only source of truth. Generated Traefik YAML is never stored, is rebuilt after every change, written atomically, and regenerated in full at startup.
+  - Integer auto-increment keys, `created_at`/`updated_at`, hard deletes. Embedded `.sql` migrations. Pure-Go SQLite driver `modernc.org/sqlite`, so no CGO.
 
 ## Not yet specified
 
-- Data model: tables, relations, migrations.
+- Data model, remaining: sessions storage, instance settings, Access List item shape, and how each host links to its Access List.
 - Frontend framework and build tooling.
 - Access List semantics (basic auth versus IP rules) and how they map to Traefik middlewares.
-- Backup and restore of the SQLite database.
+- Backup and restore. A full backup must include the SQLite file and the `acme.json` volume, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
 - Package build pipeline (nfpm or similar) and release process.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.
 

@@ -35,14 +35,22 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - Integer auto-increment keys, `created_at`/`updated_at`, hard deletes. Embedded `.sql` migrations. Pure-Go SQLite driver `modernc.org/sqlite`, so no CGO.
 - Data model (round 2):
   - Sessions are rows in a `sessions` table (hashed random token, user id, expiry); the cookie holds only the token, so sessions can be revoked.
-  - Access Lists have child tables `access_list_users` (username, password hash) and `access_list_rules` (CIDR, allow or deny). Hosts link through a nullable `access_list_id`; a list in use cannot be deleted.
+  - Access Lists have child tables `access_list_users` (username, password hash) and `access_list_rules` (CIDR, allow-only; see config generation below). Hosts link through a nullable `access_list_id`; a list in use cannot be deleted.
   - A single-row typed `settings` table holds instance options: default ACME email, default resolver, Traefik version warning, Panel listen port, and Traefik entrypoint ports.
 - Data model is resolved.
+- Config generation (verified against Traefik v3.7.19 docs; Traefik has no deny-list middleware, so IP rules are allow-only and map to `ipAllowList`):
+  - All dynamic config goes into a single file, written atomically (temp file then rename) into Traefik's watched directory.
+  - The Panel also generates the static `traefik.yml` from settings and ACME resolvers. It restarts Traefik through the `TraefikController` only when the static file's content hash changes.
+  - "Force HTTPS" is per host: an HTTPS-entrypoint router plus an HTTP-entrypoint router that redirects (`redirectScheme`) or forwards, per the host's toggle.
+  - HSTS uses the `headers` middleware; skip-TLS-verify uses a `serversTransport`; basic auth uses bcrypt hashes.
+  - Traefik's API is enabled on a loopback-only port so the Panel can show per-host active or failed status and the error.
+  - The Panel listens on its own port (default 81), not routed through Traefik by default, so it stays reachable if Traefik fails.
 
 ## Not yet specified
 
 - Frontend framework and build tooling.
-- How Access Lists map to Traefik middlewares in the generated config (shape settled, mapping details not).
+- Wildcard domains: how a host with `*.example.com` becomes a router rule and `tls.domains` (DNS challenge only).
+- How DNS-provider credentials reach Traefik's environment, and what that means for supervisor restarts.
 - Backup and restore. A full backup must include the SQLite file and the `acme.json` volume, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
 - Package build pipeline (nfpm or similar) and release process.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.

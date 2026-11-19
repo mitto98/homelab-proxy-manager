@@ -53,10 +53,16 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - Supported targets: Debian 12+, Ubuntu 22.04+, Fedora (current), RHEL-family 9+, all with systemd, on amd64 and arm64.
   - Upgrades: config files keep local edits, migrations run at Panel start (never in package scripts), removal keeps `/var/lib/homelab-proxy-manager` including the database, secret key and `acme.json`.
   - Docker image: one `/data` volume holds the database, secret key, generated config and `acme.json`; ports 80, 443, 81; tags `latest`, `X.Y.Z`, `X.Y`; ships a compose example.
+- Frontend (round 1):
+  - Vue 3 with TypeScript and Vite, using shadcn-vue (the Vue port of shadcn/ui, on Tailwind) for components.
+  - The SPA lives in `web/` in the same repo. In development the Vite dev server proxies `/api` to the Go backend; the production build goes to `web/dist` and is embedded with `embed.FS`.
+  - `web/dist` is not committed. CI builds it in the GoReleaser pre-build step, and a committed placeholder file keeps `go build` working from a fresh clone.
+  - The API is described by an OpenAPI 3 spec in the repo. Go server types are generated with `oapi-codegen` and TypeScript client types with `openapi-typescript`.
+  - English only in v1, with no i18n library.
 
 ## Not yet specified
 
-- Frontend framework and build tooling.
+- Frontend details: routing, data fetching and state, forms and validation, dark mode, tests, lint.
 - Wildcard domains: how a host with `*.example.com` becomes a router rule and `tls.domains` (DNS challenge only).
 - How DNS-provider credentials reach Traefik's environment, and what that means for supervisor restarts.
 - Backup and restore. In Docker one `/data` volume is a complete backup. On packages a backup needs both the SQLite file and `acme.json`, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.

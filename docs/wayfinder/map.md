@@ -62,7 +62,8 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
 - Frontend (round 2):
   - Vue Router for pages; Pinia only for the signed-in user and UI preferences, never for server data.
   - Server data through TanStack Query for Vue (`@tanstack/vue-query`) over the typed client; per-host Traefik status is polled on an interval.
-  - Forms use TanStack Form for Vue (`@tanstack/vue-form`) with Zod schemas, not vee-validate. shadcn-vue still supplies the visual components. The server remains the final authority on validation.
+  - Tables use TanStack Table for Vue (`@tanstack/vue-table`), through shadcn-vue's Data Table component, which is built on it.
+  - Forms use vee-validate with Zod schemas, the integration shadcn-vue ships. The server remains the final authority on validation.
   - Light and dark themes, following the system setting by default with a manual toggle.
   - Vitest with Vue Test Utils for unit and component tests, a few Playwright end-to-end tests against the built binary, ESLint with Prettier. CI blocks merging on type-check, lint and tests.
 - Frontend is resolved.

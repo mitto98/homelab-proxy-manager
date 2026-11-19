@@ -33,12 +33,16 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - Two roles: `admin` and `viewer` (read-only), as a `role` column on `users`.
   - The database is the only source of truth. Generated Traefik YAML is never stored, is rebuilt after every change, written atomically, and regenerated in full at startup.
   - Integer auto-increment keys, `created_at`/`updated_at`, hard deletes. Embedded `.sql` migrations. Pure-Go SQLite driver `modernc.org/sqlite`, so no CGO.
+- Data model (round 2):
+  - Sessions are rows in a `sessions` table (hashed random token, user id, expiry); the cookie holds only the token, so sessions can be revoked.
+  - Access Lists have child tables `access_list_users` (username, password hash) and `access_list_rules` (CIDR, allow or deny). Hosts link through a nullable `access_list_id`; a list in use cannot be deleted.
+  - A single-row typed `settings` table holds instance options: default ACME email, default resolver, Traefik version warning, Panel listen port, and Traefik entrypoint ports.
+- Data model is resolved.
 
 ## Not yet specified
 
-- Data model, remaining: sessions storage, instance settings, Access List item shape, and how each host links to its Access List.
 - Frontend framework and build tooling.
-- Access List semantics (basic auth versus IP rules) and how they map to Traefik middlewares.
+- How Access Lists map to Traefik middlewares in the generated config (shape settled, mapping details not).
 - Backup and restore. A full backup must include the SQLite file and the `acme.json` volume, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
 - Package build pipeline (nfpm or similar) and release process.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.

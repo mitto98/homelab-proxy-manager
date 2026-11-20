@@ -1,0 +1,1 @@
+Placeholder so go:embed works before the SPA is built. CI replaces web/dist with the real build.

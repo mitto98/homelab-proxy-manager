@@ -49,7 +49,7 @@ This document is the destination of the wayfinder map in `docs/wayfinder/map.md`
 
 | Area | Choice |
 |---|---|
-| Backend language | Go |
+| Backend language | Go 1.26 (required by the current `modernc.org/sqlite`) |
 | SQLite driver | `modernc.org/sqlite` (pure Go, no CGO, cross-compiles to arm64) |
 | Migrations | Embedded `.sql` files, applied in order at Panel start |
 | API | JSON REST under `/api`, described by an OpenAPI 3 spec in the repo |

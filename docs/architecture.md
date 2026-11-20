@@ -317,5 +317,5 @@ Stages 1 and 2 give a working end-to-end slice early. The Docker path comes firs
 These were deliberately left for later and none blocks starting the build:
 
 
-- **Traefik in Debian, Fedora and EPEL repositories**: not verifiable from the research sandbox. It only matters if we later want a package `Depends:`.
+- **Traefik in Debian, Fedora and EPEL repositories**: settled. None ship a Traefik package, so the external-binary decision stands with no `Depends:` (see `docs/research/traefik-distro-packages.md`).
 - **Confirm at build time**: the `tls.domains` shape for wildcard hosts, whether custom-certificate PEMs can be inline, and the redirect middleware for Redirection Hosts.

@@ -4,6 +4,8 @@
 
 A locked tech stack and an architecture spec, ready to hand off for building. No code is written in this effort.
 
+**Reached:** see `docs/architecture.md`.
+
 ## Notes
 
 - Product: an Nginx Proxy Manager equivalent whose engine is Traefik, storage is SQLite.

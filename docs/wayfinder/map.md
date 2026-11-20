@@ -27,7 +27,7 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - One `hosts` table with a `kind` column (`proxy` or `redirect`); domains in a child `host_domains` table with a unique constraint across all hosts.
   - One upstream per Proxy Host, stored as columns. Multiple upstreams deferred.
   - Host options limited to what Traefik supports natively: force HTTPS redirect, HSTS with include-subdomains, upstream `http`/`https` with skip-TLS-verify, enabled switch. No free-form advanced config in v1.
-  - Certificates split in two: `acme_resolvers` (name, email, challenge type, encrypted DNS credentials) and `custom_certificates` (PEM chain, encrypted key, domains, expiry). A host references at most one. Issued ACME certificates stay in Traefik's `acme.json` on a persistent volume.
+  - Certificates split in two: `acme_resolvers` (name, email, challenge type, staging flag; DNS credentials live in `settings`, see ACME and DNS) and `custom_certificates` (PEM chain, encrypted key, domains, expiry). A host references at most one. Issued ACME certificates stay in Traefik's `acme.json` on a persistent volume.
   - Private keys and DNS credentials are encrypted at rest with AES-GCM, using a key generated at first run into a 0600 file in the data directory.
   - Access Lists combine basic-auth credentials and IP allow/deny rules, with AND semantics only in v1 (Traefik middlewares chain; NPM's "satisfy any" is not supported).
   - Two roles: `admin` and `viewer` (read-only), as a `role` column on `users`.
@@ -67,11 +67,16 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - Light and dark themes, following the system setting by default with a manual toggle.
   - Vitest with Vue Test Utils for unit and component tests, a few Playwright end-to-end tests against the built binary, ESLint with Prettier. CI blocks merging on type-check, lint and tests.
 - Frontend is resolved.
+- ACME and DNS (verified against Traefik v3.7.19 docs):
+  - Traefik supports one DNS challenge provider per instance, so the provider and its encrypted credentials live in the single-row `settings` table and resolvers only choose the DNS challenge. Domains at other providers use CNAME delegation, documented for users. This amends the data-model decision.
+  - Credentials reach Traefik as environment variables through a 0600 env file in the data directory, derived from the encrypted database copy. The Docker run script and the systemd `EnvironmentFile=` read it, and the path unit restarts Traefik when it changes.
+  - A host domain starting with `*.` generates `Host(`*.example.com`)` plus an explicit `tls.domains` entry. It is accepted only when the host's resolver uses the DNS challenge, single level only, and the apex domain is added separately. The exact `tls.domains` shape is to be confirmed against a live Traefik during the build.
+  - The DNS provider is a name plus key/value environment pairs, validated against lego's provider list, with a few UI presets. Variable names must match `[A-Z0-9_]+` and cannot be `PATH`, `LD_*` or `TRAEFIK_*`.
+  - Each resolver has a Let's Encrypt staging toggle.
+  - The Panel reads `acme.json` read-only, best effort, to show certificate domains and expiry, and shows "unknown" if parsing fails.
 
 ## Not yet specified
 
-- Wildcard domains: how a host with `*.example.com` becomes a router rule and `tls.domains` (DNS challenge only).
-- How DNS-provider credentials reach Traefik's environment, and what that means for supervisor restarts.
 - Backup and restore. In Docker one `/data` volume is a complete backup. On packages a backup needs both the SQLite file and `acme.json`, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
 - Release signing: which key or keyless method signs the checksums file.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.

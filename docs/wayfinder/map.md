@@ -76,11 +76,14 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - The DNS provider is a name plus key/value environment pairs, validated against lego's provider list, with a few UI presets. Variable names must match `[A-Z0-9_]+` and cannot be `PATH`, `LD_*` or `TRAEFIK_*`.
   - Each resolver has a Let's Encrypt staging toggle.
   - The Panel reads `acme.json` read-only, best effort, to show certificate domains and expiry, and shows "unknown" if parsing fails.
+- Backup and signing:
+  - A backup is exactly `panel.db`, `secret.key` and `acme.json`; everything else is regenerated.
+  - The binary has `backup <file>` and `restore <file>` subcommands producing a single `.tar.gz`. SQLite is copied with its online backup mechanism, so backup works while the Panel runs. Restore refuses to run while the Panel is running. The same commands work in Docker through `docker exec`.
+  - Backup is CLI only in v1, not in the web UI or API, so the secret key is never behind a web endpoint.
+  - Release checksums are signed with cosign keyless, using GitHub's OIDC identity from the Actions run. The verification command goes in the README. GPG is deferred until a hosted repository exists.
 
 ## Not yet specified
 
-- Backup and restore. In Docker one `/data` volume is a complete backup. On packages a backup needs both the SQLite file and `acme.json`, otherwise Traefik reissues certificates and may hit Let's Encrypt rate limits.
-- Release signing: which key or keyless method signs the checksums file.
 - Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.
 
 ## Out of scope

@@ -286,6 +286,12 @@ The Vue SPA lives in `web/`, is served by the Go binary from `embed.FS`, and tal
 - No distro or official Traefik package exists, so the package declares no `Depends:` on one. The Traefik binary path defaults to `/usr/local/bin/traefik` and is set in an environment file. The Traefik unit fails with a clear message if the binary is missing, and the post-install script prints install instructions.
 - Config files keep local edits on upgrade. Migrations run when the Panel starts, never in package scripts. Removing the package keeps `/var/lib/homelab-proxy-manager`.
 
+### Backup and signing
+
+- A backup is exactly `panel.db`, `secret.key` and `acme.json`; everything else is regenerated. The binary provides `backup <file>` and `restore <file>` subcommands that produce and consume one `.tar.gz`. SQLite is copied with its online backup mechanism so backup works while the Panel runs, and restore refuses to run while it is running. In Docker the same commands run through `docker exec`.
+- Backup is CLI only in v1. It is not in the web UI or API, so the secret key is never behind a web endpoint.
+- Release checksums are signed with cosign in keyless mode using GitHub's OIDC identity from the Actions run, and the README documents the verification command. GPG signing is deferred until a hosted package repository exists.
+
 ## 11. Testing strategy
 
 - **Renderer**: golden-file tests over a table of host configurations. No Traefik needed.
@@ -310,7 +316,6 @@ Stages 1 and 2 give a working end-to-end slice early. The Docker path comes firs
 
 These were deliberately left for later and none blocks starting the build:
 
-- **Backup and restore for package installs.** Docker is covered by the single volume. For packages, either document a procedure or add a `backup` subcommand. A backup must include `panel.db`, `secret.key` and `acme.json`.
-- **Release signing method**: cosign keyless via GitHub OIDC or a GPG key.
+
 - **Traefik in Debian, Fedora and EPEL repositories**: not verifiable from the research sandbox. It only matters if we later want a package `Depends:`.
 - **Confirm at build time**: the `tls.domains` shape for wildcard hosts, whether custom-certificate PEMs can be inline, and the redirect middleware for Redirection Hosts.

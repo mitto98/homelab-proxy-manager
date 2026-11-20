@@ -1,0 +1,17 @@
+{
+  "name": "proxy-manager-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prototype": "vite --host"
+  },
+  "dependencies": {
+    "vue": "3.5.13"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.1.4",
+    "@vitejs/plugin-vue": "5.2.1",
+    "tailwindcss": "4.1.4",
+    "vite": "6.0.7"
+  }
+}

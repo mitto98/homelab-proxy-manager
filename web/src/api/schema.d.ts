@@ -87,6 +87,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/hosts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List all hosts, oldest first */
+        get: operations["listHosts"];
+        put?: never;
+        /** Create a Proxy Host */
+        post: operations["createHost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hosts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        get: operations["getHost"];
+        /** Replace a host's fields and domains */
+        put: operations["updateHost"];
+        post?: never;
+        delete: operations["deleteHost"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -106,8 +143,45 @@ export interface components {
             /** @enum {string} */
             role: "admin" | "viewer";
         };
+        /**
+         * @description The editable fields of a Proxy Host. Domains are lower-cased by the
+         *     server. `upstreamSkipTlsVerify` only applies to `https` upstreams and is
+         *     cleared for `http`.
+         */
+        HostInput: {
+            /** @description Public domain names, in the order shown to users. Each must be unique across all hosts. */
+            domains: string[];
+            /** @enum {string} */
+            upstreamScheme: "http" | "https";
+            /** @description A host name or IP address (no scheme, port or path) */
+            upstreamHost: string;
+            upstreamPort: number;
+            /** @default false */
+            upstreamSkipTlsVerify: boolean;
+            /** @default true */
+            enabled: boolean;
+        };
+        Host: {
+            /** Format: int64 */
+            id: number;
+            /** @enum {string} */
+            kind: "proxy";
+            enabled: boolean;
+            domains: string[];
+            /** @enum {string} */
+            upstreamScheme: "http" | "https";
+            upstreamHost: string;
+            upstreamPort: number;
+            upstreamSkipTlsVerify: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         Error: {
             error: string;
+            /** @description For validation errors, the request field the message is about (for example `domains` or `upstreamPort`) */
+            field?: string;
         };
     };
     responses: {
@@ -247,6 +321,135 @@ export interface operations {
                 };
             };
             401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    listHosts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The hosts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Host"][];
+                };
+            };
+            401: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    createHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostInput"];
+            };
+        };
+        responses: {
+            /** @description The created host */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Host"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    getHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Host"];
+                };
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    updateHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostInput"];
+            };
+        };
+        responses: {
+            /** @description The updated host */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Host"];
+                };
+            };
+            400: components["responses"]["Error"];
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+            409: components["responses"]["Error"];
+            500: components["responses"]["Error"];
+        };
+    };
+    deleteHost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Error"];
+            404: components["responses"]["Error"];
             500: components["responses"]["Error"];
         };
     };

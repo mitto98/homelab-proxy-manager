@@ -3,9 +3,13 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+// pathParam matches an OpenAPI path parameter such as {id}.
+var pathParam = regexp.MustCompile(`\{[^}]+\}`)
 
 // Every operation that declares `security` in api/openapi.yaml must reject a
 // request without a session, and public operations must not. This reads the
@@ -23,8 +27,9 @@ func TestSecuredOperationsRequireSession(t *testing.T) {
 				continue
 			}
 			checked++
-			// Fill path parameters with a placeholder; none exist yet.
-			url := ts.URL + "/api" + path
+			// Fill path parameters with a valid value: parameter binding runs
+			// before the session check, so a malformed one would answer 400.
+			url := ts.URL + "/api" + pathParam.ReplaceAllString(path, "1")
 			res := do(t, http.DefaultClient, method, url, `{}`)
 			if res.StatusCode != http.StatusUnauthorized {
 				t.Errorf("%s %s (%s): want 401 without a session, got %d", method, path, op.OperationID, res.StatusCode)

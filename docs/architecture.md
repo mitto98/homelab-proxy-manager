@@ -97,6 +97,7 @@ The first user is created by the first-run setup flow and is an admin. (Whether 
 - Proxy fields: `upstream_scheme` (`http` or `https`), `upstream_host`, `upstream_port`, `upstream_skip_tls_verify`
 - Redirect fields: `redirect_target`, `redirect_status_code`, `redirect_preserve_path`
 - Options: `force_https`, `hsts_enabled`, `hsts_include_subdomains`
+- The upstream columns are nullable so Redirection Hosts can share the table; a `CHECK` makes `upstream_scheme`, `upstream_host` and `upstream_port` mandatory when `kind` is `proxy`. Domains keep the order the user gave them (insertion order of `host_domains`).
 - References, all nullable: `acme_resolver_id`, `custom_certificate_id` (a check constraint allows at most one of them), `access_list_id`
 
 **host_domains**: `id`, `host_id`, `domain` with a unique constraint across all hosts, so a domain can never be both proxied and redirected or belong to two hosts. A domain may start with `*.` (see section 7.5).
@@ -256,6 +257,8 @@ All routes are under `/api` and defined in `api/openapi.yaml`.
 | Users | `/users` (CRUD, admin only) |
 | Settings | `GET/PUT /settings` |
 | System | `GET /status` (Traefik reachable, version, warnings) |
+
+Errors share one JSON shape, `{"error": "message"}`, with an optional `field` naming the request field a validation error is about (for example `domains`). A domain already used by another host is a `409` that names the domain.
 
 Authentication is local users with passwords, cookie sessions and a first-run admin setup. Roles are `admin` (everything) and `viewer` (read-only). Authorization is enforced in one middleware, not per handler.
 

@@ -15,10 +15,62 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/oapi-codegen/runtime"
 )
+
+// Defines values for HostKind.
+const (
+	Proxy HostKind = "proxy"
+)
+
+// Valid indicates whether the value is a known member of the HostKind enum.
+func (e HostKind) Valid() bool {
+	switch e {
+	case Proxy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostUpstreamScheme.
+const (
+	HostUpstreamSchemeHttp  HostUpstreamScheme = "http"
+	HostUpstreamSchemeHttps HostUpstreamScheme = "https"
+)
+
+// Valid indicates whether the value is a known member of the HostUpstreamScheme enum.
+func (e HostUpstreamScheme) Valid() bool {
+	switch e {
+	case HostUpstreamSchemeHttp:
+		return true
+	case HostUpstreamSchemeHttps:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HostInputUpstreamScheme.
+const (
+	HostInputUpstreamSchemeHttp  HostInputUpstreamScheme = "http"
+	HostInputUpstreamSchemeHttps HostInputUpstreamScheme = "https"
+)
+
+// Valid indicates whether the value is a known member of the HostInputUpstreamScheme enum.
+func (e HostInputUpstreamScheme) Valid() bool {
+	switch e {
+	case HostInputUpstreamSchemeHttp:
+		return true
+	case HostInputUpstreamSchemeHttps:
+		return true
+	default:
+		return false
+	}
+}
 
 // Defines values for UserRole.
 const (
@@ -47,7 +99,48 @@ type Credentials struct {
 // Error defines model for Error.
 type Error struct {
 	Error string `json:"error"`
+
+	// Field For validation errors, the request field the message is about (for example `domains` or `upstreamPort`)
+	Field *string `json:"field,omitempty"`
 }
+
+// Host defines model for Host.
+type Host struct {
+	CreatedAt             time.Time          `json:"createdAt"`
+	Domains               []string           `json:"domains"`
+	Enabled               bool               `json:"enabled"`
+	Id                    int64              `json:"id"`
+	Kind                  HostKind           `json:"kind"`
+	UpdatedAt             time.Time          `json:"updatedAt"`
+	UpstreamHost          string             `json:"upstreamHost"`
+	UpstreamPort          int                `json:"upstreamPort"`
+	UpstreamScheme        HostUpstreamScheme `json:"upstreamScheme"`
+	UpstreamSkipTlsVerify bool               `json:"upstreamSkipTlsVerify"`
+}
+
+// HostKind defines model for Host.Kind.
+type HostKind string
+
+// HostUpstreamScheme defines model for Host.UpstreamScheme.
+type HostUpstreamScheme string
+
+// HostInput The editable fields of a Proxy Host. Domains are lower-cased by the
+// server. `upstreamSkipTlsVerify` only applies to `https` upstreams and is
+// cleared for `http`.
+type HostInput struct {
+	// Domains Public domain names, in the order shown to users. Each must be unique across all hosts.
+	Domains []string `json:"domains"`
+	Enabled *bool    `json:"enabled,omitempty"`
+
+	// UpstreamHost A host name or IP address (no scheme, port or path)
+	UpstreamHost          string                  `json:"upstreamHost"`
+	UpstreamPort          int                     `json:"upstreamPort"`
+	UpstreamScheme        HostInputUpstreamScheme `json:"upstreamScheme"`
+	UpstreamSkipTlsVerify *bool                   `json:"upstreamSkipTlsVerify,omitempty"`
+}
+
+// HostInputUpstreamScheme defines model for HostInput.UpstreamScheme.
+type HostInputUpstreamScheme string
 
 // Status defines model for Status.
 type Status struct {
@@ -68,6 +161,12 @@ type UserRole string
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = Credentials
 
+// CreateHostJSONRequestBody defines body for CreateHost for application/json ContentType.
+type CreateHostJSONRequestBody = HostInput
+
+// UpdateHostJSONRequestBody defines body for UpdateHost for application/json ContentType.
+type UpdateHostJSONRequestBody = HostInput
+
 // SetupJSONRequestBody defines body for Setup for application/json ContentType.
 type SetupJSONRequestBody = Credentials
 
@@ -82,6 +181,21 @@ type ServerInterface interface {
 
 	// (GET /auth/me)
 	GetMe(w http.ResponseWriter, r *http.Request)
+	// ListHosts List all hosts, oldest first
+	// (GET /hosts)
+	ListHosts(w http.ResponseWriter, r *http.Request)
+	// CreateHost Create a Proxy Host
+	// (POST /hosts)
+	CreateHost(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /hosts/{id})
+	DeleteHost(w http.ResponseWriter, r *http.Request, id int64)
+
+	// (GET /hosts/{id})
+	GetHost(w http.ResponseWriter, r *http.Request, id int64)
+	// UpdateHost Replace a host's fields and domains
+	// (PUT /hosts/{id})
+	UpdateHost(w http.ResponseWriter, r *http.Request, id int64)
 	// Setup Create the first admin; only allowed while no user exists
 	// (POST /setup)
 	Setup(w http.ResponseWriter, r *http.Request)
@@ -132,6 +246,112 @@ func (siw *ServerInterfaceWrapper) GetMe(w http.ResponseWriter, r *http.Request)
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetMe(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListHosts operation middleware
+func (siw *ServerInterfaceWrapper) ListHosts(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListHosts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateHost operation middleware
+func (siw *ServerInterfaceWrapper) CreateHost(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateHost(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteHost operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHost(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteHost(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHost operation middleware
+func (siw *ServerInterfaceWrapper) GetHost(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHost(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateHost operation middleware
+func (siw *ServerInterfaceWrapper) UpdateHost(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateHost(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -294,6 +514,11 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/login", wrapper.Login)
 	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/auth/logout", wrapper.Logout)
 	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/auth/me", wrapper.GetMe)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/hosts", wrapper.ListHosts)
+	m.HandleFunc(http.MethodPost+" "+options.BaseURL+"/hosts", wrapper.CreateHost)
+	m.HandleFunc(http.MethodDelete+" "+options.BaseURL+"/hosts/{id}", wrapper.DeleteHost)
+	m.HandleFunc(http.MethodGet+" "+options.BaseURL+"/hosts/{id}", wrapper.GetHost)
+	m.HandleFunc(http.MethodPut+" "+options.BaseURL+"/hosts/{id}", wrapper.UpdateHost)
 
 	return m
 }
@@ -472,6 +697,348 @@ func (response GetMe500JSONResponse) VisitGetMeResponse(w http.ResponseWriter) e
 	return err
 }
 
+type ListHostsRequestObject struct {
+}
+
+type ListHostsResponseObject interface {
+	VisitListHostsResponse(w http.ResponseWriter) error
+}
+
+type ListHosts200JSONResponse []Host
+
+func (response ListHosts200JSONResponse) VisitListHostsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHosts401JSONResponse struct{ ErrorJSONResponse }
+
+func (response ListHosts401JSONResponse) VisitListHostsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response.ErrorJSONResponse); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListHosts500JSONResponse Error
+
+func (response ListHosts500JSONResponse) VisitListHostsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHostRequestObject struct {
+	Body *CreateHostJSONRequestBody
+}
+
+type CreateHostResponseObject interface {
+	VisitCreateHostResponse(w http.ResponseWriter) error
+}
+
+type CreateHost201JSONResponse Host
+
+func (response CreateHost201JSONResponse) VisitCreateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHost400JSONResponse struct{ ErrorJSONResponse }
+
+func (response CreateHost400JSONResponse) VisitCreateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response.ErrorJSONResponse); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHost401JSONResponse Error
+
+func (response CreateHost401JSONResponse) VisitCreateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHost409JSONResponse Error
+
+func (response CreateHost409JSONResponse) VisitCreateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateHost500JSONResponse Error
+
+func (response CreateHost500JSONResponse) VisitCreateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteHostRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type DeleteHostResponseObject interface {
+	VisitDeleteHostResponse(w http.ResponseWriter) error
+}
+
+type DeleteHost204Response struct {
+}
+
+func (response DeleteHost204Response) VisitDeleteHostResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteHost401JSONResponse struct{ ErrorJSONResponse }
+
+func (response DeleteHost401JSONResponse) VisitDeleteHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response.ErrorJSONResponse); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteHost404JSONResponse Error
+
+func (response DeleteHost404JSONResponse) VisitDeleteHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteHost500JSONResponse Error
+
+func (response DeleteHost500JSONResponse) VisitDeleteHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHostRequestObject struct {
+	Id int64 `json:"id"`
+}
+
+type GetHostResponseObject interface {
+	VisitGetHostResponse(w http.ResponseWriter) error
+}
+
+type GetHost200JSONResponse Host
+
+func (response GetHost200JSONResponse) VisitGetHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHost401JSONResponse struct{ ErrorJSONResponse }
+
+func (response GetHost401JSONResponse) VisitGetHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response.ErrorJSONResponse); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHost404JSONResponse Error
+
+func (response GetHost404JSONResponse) VisitGetHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHost500JSONResponse Error
+
+func (response GetHost500JSONResponse) VisitGetHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHostRequestObject struct {
+	Id   int64 `json:"id"`
+	Body *UpdateHostJSONRequestBody
+}
+
+type UpdateHostResponseObject interface {
+	VisitUpdateHostResponse(w http.ResponseWriter) error
+}
+
+type UpdateHost200JSONResponse Host
+
+func (response UpdateHost200JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHost400JSONResponse struct{ ErrorJSONResponse }
+
+func (response UpdateHost400JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response.ErrorJSONResponse); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHost401JSONResponse Error
+
+func (response UpdateHost401JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHost404JSONResponse Error
+
+func (response UpdateHost404JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHost409JSONResponse Error
+
+func (response UpdateHost409JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateHost500JSONResponse Error
+
+func (response UpdateHost500JSONResponse) VisitUpdateHostResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := runtime.JSONMarshalWrite(&buf, response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SetupRequestObject struct {
 	Body *SetupJSONRequestBody
 }
@@ -598,6 +1165,21 @@ type StrictServerInterface interface {
 
 	// (GET /auth/me)
 	GetMe(ctx context.Context, request GetMeRequestObject) (GetMeResponseObject, error)
+	// ListHosts List all hosts, oldest first
+	// (GET /hosts)
+	ListHosts(ctx context.Context, request ListHostsRequestObject) (ListHostsResponseObject, error)
+	// CreateHost Create a Proxy Host
+	// (POST /hosts)
+	CreateHost(ctx context.Context, request CreateHostRequestObject) (CreateHostResponseObject, error)
+
+	// (DELETE /hosts/{id})
+	DeleteHost(ctx context.Context, request DeleteHostRequestObject) (DeleteHostResponseObject, error)
+
+	// (GET /hosts/{id})
+	GetHost(ctx context.Context, request GetHostRequestObject) (GetHostResponseObject, error)
+	// UpdateHost Replace a host's fields and domains
+	// (PUT /hosts/{id})
+	UpdateHost(ctx context.Context, request UpdateHostRequestObject) (UpdateHostResponseObject, error)
 	// Setup Create the first admin; only allowed while no user exists
 	// (POST /setup)
 	Setup(ctx context.Context, request SetupRequestObject) (SetupResponseObject, error)
@@ -727,6 +1309,146 @@ func (sh *strictHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// ListHosts operation middleware
+func (sh *strictHandler) ListHosts(w http.ResponseWriter, r *http.Request) {
+	var request ListHostsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.ListHosts(ctx, request.(ListHostsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListHosts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListHostsResponseObject); ok {
+		if err := validResponse.VisitListHostsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateHost operation middleware
+func (sh *strictHandler) CreateHost(w http.ResponseWriter, r *http.Request) {
+	var request CreateHostRequestObject
+
+	var body CreateHostJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.CreateHost(ctx, request.(CreateHostRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateHost")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateHostResponseObject); ok {
+		if err := validResponse.VisitCreateHostResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteHost operation middleware
+func (sh *strictHandler) DeleteHost(w http.ResponseWriter, r *http.Request, id int64) {
+	var request DeleteHostRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.DeleteHost(ctx, request.(DeleteHostRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteHost")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteHostResponseObject); ok {
+		if err := validResponse.VisitDeleteHostResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHost operation middleware
+func (sh *strictHandler) GetHost(w http.ResponseWriter, r *http.Request, id int64) {
+	var request GetHostRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.GetHost(ctx, request.(GetHostRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHost")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHostResponseObject); ok {
+		if err := validResponse.VisitGetHostResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateHost operation middleware
+func (sh *strictHandler) UpdateHost(w http.ResponseWriter, r *http.Request, id int64) {
+	var request UpdateHostRequestObject
+
+	request.Id = id
+
+	var body UpdateHostJSONRequestBody
+	if err := runtime.BindJSONBody(r, &body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+		return sh.ssi.UpdateHost(ctx, request.(UpdateHostRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateHost")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateHostResponseObject); ok {
+		if err := validResponse.VisitUpdateHostResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Setup operation middleware
 func (sh *strictHandler) Setup(w http.ResponseWriter, r *http.Request) {
 	var request SetupRequestObject
@@ -787,24 +1509,34 @@ func (sh *strictHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"1Fbdbhs3E32VAb/vIgGklZ24abu5co0gcJM2RuVcWUZF7Y52mXKHW3LW8iLQuxdD6tdWjBiN0fZCwIrk",
-	"/J05c8jPqnBN6wiJg8o/K4+hdRQw/nnjvfPyUThiJJZP3bbWFJqNo9Gn4EjWQlFjo+Xr/x7nKlf/G229",
-	"jtJuGCVvy+VyoEoMhTetOFG5Wm8MVo5i7DOPJRIbbePf1rsWPZuUWKtDWDhfynejb98jVVyr/PsXA9UY",
-	"Wv/9YaC4b1HlKrA3VKnlQHUBPekG71i+OtmzPL5nuRwoj392xmOp8qutm8E2l+uNkZt9woIl3AbB/fxx",
-	"vfxwlHTskN8xa+4OABOQu/a3jYtNgJlzFjWJ6Q36YFLfHo6+72treCifjwEPlGliCnPnG80qV4b41Yna",
-	"WBtirNCLuXc2dgSpayS0LhtDEtLgAncRONzIh+swkvxOw2Kw+0UI/bDovOF+LDRcAxrWaBnhauHcH0a8",
-	"pNiqbpvf12c2LnVr3mGfqG5o7sR6n/I/jz/8CqcX5+DmwDXChSa0GVzWJsDcWAQT4nowVFmE4DpfYDzs",
-	"O67zuPfWTSigv0EPEjeAphJqTaVFH+DZVPD1pO1It0Z+WYWUVW76PB4UD5d9i+OY1YQKa5B45enZdIGz",
-	"UfBFtE1TmZUZBzH2CBUSes1Ywty7BgxnE5rQqbUQWDMOi1pTZagC6QMGDtB0gSEglTA9S2IylOg53NWT",
-	"6WBCeIMEixpJsuyh1jcI5GDmyj6D045rEYZkI0BpWHUAUncm9Gy605fpcwjIMOthOtId1yPrKkNTcB6m",
-	"o0jyaTaJ3TNsY09dg1bPhq13t/2w0aQr9NKtnSHI1VF2nB0JE12LpFujcvUyO8peRkngOrJnJ16cDhei",
-	"hsqMxOzPS5Wr93E7cRYD/+TK/ptp7q6KLvcHg32HcWFH8F8cHX2z0FESDqj92FSEJcSSa9Ql+hh6jDw8",
-	"S8N1b1oua4S9jt5puBrs5HRXDCSDk1TXoXQ39a/vJzl9/IjT3z3Cd0xmQwrX8YOskP17DTq5D88K0XT8",
-	"KyF9c9saj0lk9qH9SkgfVfZAha5ptO9X2Uqur6MchPVgw6xjCGysBUIsU2ZRJldsjNKktgAm6a/wAHZv",
-	"kX9B9Q9w+zJKtnRjaAi6gE/Np+2dpfKrndvq6np5HaGK+vZllo3j9r9Ee46fvD+n8q6AwmO8u+QaDP8B",
-	"NfrxCdmzGcuzCEqcurnxgSG+wV6DI9uDttYtsIRFLW8TcpHagLcmcEgjGTYP0i9N5OrJ+oRTuYpwoO8f",
-	"3v0tbC66mTUFpBoHUnwpzwnB6uM5sIMSC1MizJAXiARx6CK90tW/TIMqT7UQ57TzVuVKHldqeb38KwAA",
-	"//8=",
+	"1Fhfcxu3Ef8qO2hnKs+cSCmW3ZZ5Uh03UeM2mkjui+UpwcOShxgHXACcKI6H372zizvyjjwqdmJZ9oNG",
+	"PPzd/e3ub3fxXuSurJxFG4OYvBceQ+VsQP546b3z9CN3NqKN9FNWldG5jNrZ8S/BWRoLeYGlpF9/9jgX",
+	"E/Gn8fbUcZoN43Taer3OhMKQe13RIWIi2omsOYjvfuFRoY1aGv6svKvQR50Eq2QIS+cV/S7l3Su0i1iI",
+	"yV+/yUSpbfv5t0zEVYViIkL02i7EOhN1QG9liTs7n5/1dp7u7VxnwuOvtfaoxOTN9phsK8vbzSY3+wXz",
+	"SNdtEOzLj+3wnnxzjYbV6kP0T+fhVhqtGHjg/SGDWCCQWBgi8E4eKTEEuUDQAeTM1RGO5s4D3smyMghT",
+	"5UqpbZiC8zCtqxA9yvLS+Th9In5L7yT4kKY/uBD3Fc09yojqnKfmzpcyiolQMuJx1AzfHgKNeLRBRyzD",
+	"IEzNgPRerugbrZwZVJ21M+cMSkuTWvVu1zY+P9verG3EBXpa+E5bXoq2Lknbyru7VUfbjhtV6mP1apFu",
+	"gTq4gEzRWdCRr11xRWGCXUmLGCuR8b9wQOBm6ztdXZvwX/R6vhqCa8fgWokGly3IWxvtibSj5o5Sh8TI",
+	"On7SxfaQn13Yqo77QXJdIKDSkaRM4RDAzUHCJdkRaOcIvkuig/QIxi3RH+cyoILZimLnxgb0t+hH28jo",
+	"iToFZ80KmAQxQHQwZcyn0C4PIK0CHW5sblB6VEDBx6umoxtLhNGLkI6797W5rGdG55DmgcgmZKAtR7jz",
+	"Cj2Ewi0tyUBsFEbwUuYFlHWIMEOorf61RpC5dyGANAYKF2IYieyesCq1vUiTp/fGmMK5rE0Uk+hrzAZC",
+	"btfZ+6qdsyysE5HQxSVIpTyGAEfWAScBzKByPtJ0JWPx5L6IagOmlHe6pHh4/uzZ02esTfo+zT5TMG1w",
+	"mUsTBoDZCa7fGUZDYXEVZawHMmXAWFc/b+4cosdb9EGnRH4/+ffP2m4ckud1wIG898FM7J3pmUSqUlPs",
+	"3Gpcoh82Siez368Hc1ong/Nl+0pQPYJ57XVcJbM0gIYWLU2+nDv3TtMp6W5RVOX/2jXbGKr0j7hKtY+2",
+	"c7cfEv+6+uk/cH55QYRFEX4pLZoRXBc6wFwbTuY0HrRdGITgap8jL/Z1LCY8971r6Qvo3sREhbTKoA9w",
+	"NCV8vZVmLCtNf6MF2tHCTZ/wQjrhelXhFUtF9KXRxuako+kSZ+Pgc96byrSRGsVAmz3CAi16Ym2Ye1eC",
+	"jqMbe2PPjYEQKSnmhbQLbRdttRISTwW0CqYvUnV5TLdPYLfAnGY3Fm/RwrJAZr8VFPIWwTqYObUawXkd",
+	"C6oU0x6ueqCxACTr3Nijaccu0ycQMBLjT8eyjsXYuIW2qR4as5M3TB11NGxTV6KRs2OuB45LaeUCPVmr",
+	"EwQTcTI6HZ2QJ7oKray0mIino5PRU64RY8He07mPo6OhR4oRlv5CiYl4xdPJZzHEfzi1+mRFeLesXvcD",
+	"g7icBzodwDcnJ5/saqaEgfL/Si8sKmCVC5QKPV99hfH4RQquwUzfs+iOwUXWkWmXDEiCs6TXkLgb/duG",
+	"hVaffsTqZx9xNguzcQqXqpqDXkHzewY624enQTQt/0BIX95V2mMimT60HwjpR6mdiVCXpfSrRlqS9Vum",
+	"g9AGNszqCCFqY8AiqiQZ02TjjUxNYgtgov4FDmD3PcZ/o3gE375myiZrHGvLddoD+9M2Z4nJm062evN2",
+	"/Zah4irwIFCvdIg/8Io/CNamxrwPNS5u9rq5YRST3I8HXtdjCaVtSZ2BMyp14D7pMxzAL7jHaQq6h+D2",
+	"bWv0Qcx++kkvPmS3prNjqMQDM+/Zyd8f2zWSkXs9p9jG3fi9VuvEvQYj7vvIdzy+8ZHfIvq0XP0epM4e",
+	"hYGyg/w8rPPJZ/HRrW9+HRhW0ssSI2f1N00fQiXmtgvhFqdPAN38vdeB3dcqk4M37y19q73mh5ovh9A+",
+	"j7M0z1OfidDOvi76+xkrI3PiP4LnL6F9hqMGs33tYDrkNutwsXvF019IC3T64GXiuSq13aRKAit8BU3R",
+	"Q3rbbkKl4p/rK+CnoG+bd1hj3BIVLAtt+EWAKmzAO821IvvZ5l3sUOJpXs4ekE2aGwbs/tOPfwib5ok4",
+	"6ZiR8u07Nry+gOhAYa4VwgzjEtECBx27V3qBWKfA9rdtJqm9ERMxlpUW67fr/wcAAP//",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

@@ -3,8 +3,12 @@ info:
   title: homelab-proxy-manager API
   version: 0.1.0
   description: |
-    JSON API of the Panel. All state-changing requests must send
-    `Content-Type: application/json`. Authentication is a session cookie
+    JSON API of the Panel. This file is the single source of truth: the Go
+    server types and handlers (`internal/api/api.gen.go`) and the TypeScript
+    client types (`web/src/api/schema.d.ts`) are generated from it.
+
+    All state-changing requests must send `Content-Type: application/json`,
+    even when they have no body. Authentication is a session cookie
     (`hpm_session`) set by `/auth/login` or `/setup`.
 servers:
   - url: /api
@@ -19,6 +23,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+        "500": { $ref: "#/components/responses/Error" }
   /setup:
     post:
       operationId: setup
@@ -31,11 +36,16 @@ paths:
       responses:
         "201":
           description: Admin created and signed in
+          headers:
+            Set-Cookie:
+              description: The `hpm_session` session cookie
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         "400": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/login:
     post:
       operationId: login
@@ -47,19 +57,28 @@ paths:
       responses:
         "200":
           description: Signed in
+          headers:
+            Set-Cookie:
+              description: The `hpm_session` session cookie
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/logout:
     post:
       operationId: logout
-      requestBody:
-        content:
-          application/json:
-            schema: { type: object }
+      summary: Sign out; sends no body but still needs the JSON content type
       responses:
-        "204": { description: Signed out }
+        "204":
+          description: Signed out
+          headers:
+            Set-Cookie:
+              description: Expires the `hpm_session` cookie
+              schema: { type: string }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/me:
     get:
       operationId: getMe
@@ -71,6 +90,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     session:

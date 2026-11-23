@@ -1,0 +1,12 @@
+# oapi-codegen configuration. Regenerate with `scripts/generate.sh`.
+package: api
+# The output file is given by -o in the go:generate directive (internal/api/api.go).
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  # The embedded spec lets the server read security (and later x-role) per
+  # operation from the contract instead of duplicating it in Go code.
+  embedded-spec: true
+output-options:
+  skip-prune: true

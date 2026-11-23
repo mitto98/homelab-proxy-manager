@@ -1,0 +1,11 @@
+{
+  "name": "homelab-proxy-manager-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate:api": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0"
+  }
+}

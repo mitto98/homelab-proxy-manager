@@ -1,0 +1,73 @@
+# Continuous integration. Slice [2.1] adds the Go job; later slices add jobs here
+# (generated-code check, Traefik harness, frontend, Docker) without rewriting it.
+#
+# Making a job a *required* check is a repository setting (Settings > Branches or
+# Rulesets) that the maintainer turns on; it cannot be done from this file.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: go (vet, build, test)
+    # Pinned: ubuntu-latest is moving to Ubuntu 26.04 in November 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          # go.mod is the single source of the Go version. setup-go caches the
+          # module and build caches keyed on go.sum.
+          go-version-file: go.mod
+
+      # A fresh clone builds because web/dist/placeholder.txt is tracked, so
+      # go:embed finds a file even before the frontend has been built.
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./...
+
+  generated:
+    name: generated code is up to date
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # api/openapi.yaml is the source of truth for the Go server code and the
+      # TypeScript client types. Regenerate both and fail on any difference.
+      - name: Regenerate from api/openapi.yaml
+        run: scripts/generate.sh
+
+      - name: Fail if generated files are out of date
+        run: |
+          git add --intent-to-add --all
+          if ! git diff --exit-code; then
+            echo "::error::Generated files are out of date. Run scripts/generate.sh and commit the result."
+            exit 1
+          fi

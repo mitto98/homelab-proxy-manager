@@ -34,3 +34,19 @@ compile error.
 - **State-changing requests** must send `Content-Type: application/json`, even
   without a body (for example logout). The server answers `415` otherwise.
 - Request bodies are limited to 1 MiB.
+
+## Integration tests against a real Traefik
+
+`internal/traefiktest` runs a pinned Traefik (version and tarball hashes in
+`internal/traefiktest/pin.go`) against a directory of config, and tests wait for
+its API to list the routers they expect. Its package comment records what Traefik
+does with invalid files, the API with the dashboard off, and the `@file` names.
+
+- The first run downloads the release tarball, checks it against the committed
+  sha256 and caches the binary under `os.UserCacheDir()` (override with
+  `HPM_TRAEFIK_CACHE`). Linux only.
+- If the binary cannot be obtained, tests that need it skip with the reason. CI
+  sets `HPM_REQUIRE_TRAEFIK=1` so they fail instead.
+- To bump Traefik, change `Version` and both hashes in `pin.go` (take them from
+  the release's `traefik_v<version>_checksums.txt`, and compare with a second
+  download) in one pull request, together with the Docker image tag.

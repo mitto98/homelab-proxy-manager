@@ -39,7 +39,22 @@ jobs:
       - name: go build
         run: go build ./...
 
+      # The Traefik harness (internal/traefiktest) downloads a pinned, hash-checked
+      # Traefik release into this cache. Keying on the version means a bump in
+      # internal/traefiktest/pin.go starts a fresh cache.
+      - name: Resolve pinned Traefik version
+        id: traefik
+        run: echo "version=$(sed -n 's/^const Version = "\(.*\)"/\1/p' internal/traefiktest/pin.go)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/homelab-proxy-manager/traefik
+          key: traefik-${{ runner.os }}-${{ runner.arch }}-${{ steps.traefik.outputs.version }}
+
       - name: go test
+        env:
+          # A Traefik download problem must fail the build, not skip the tests.
+          HPM_REQUIRE_TRAEFIK: "1"
         run: go test ./...
 
   generated:

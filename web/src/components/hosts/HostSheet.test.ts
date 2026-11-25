@@ -184,6 +184,13 @@ describe('domain chips', () => {
     expect(chips()).toEqual(['b.example.com'])
   })
 
+  it('keeps the chips accessible: no nested buttons, each remove control named', async () => {
+    await open(host({ id: 1, domains: ['a.example.com'] }))
+    expect(document.body.querySelectorAll('button button')).toHaveLength(0)
+    const remove = dom('button[aria-label="Remove a.example.com"]')
+    expect(remove.attributes('aria-labelledby')).toBe(remove.attributes('id'))
+  })
+
   it('has a labelled input reachable from the label', async () => {
     await open()
     expect(byLabel('Domain names').element.tagName).toBe('INPUT')

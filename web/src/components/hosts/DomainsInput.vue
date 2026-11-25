@@ -40,9 +40,24 @@ function update(value: unknown) {
       @update:model-value="update"
       @invalid="(v) => (duplicate = String(v))"
     >
-      <TagsInputItem v-for="domain in model" :key="domain" :value="domain" class="h-6 gap-1 pl-2">
+      <!-- reka renders the chip and its delete control as buttons by default, which nests
+           one in the other and hides the inner one from assistive technology. The chip
+           is a span; the delete control labels itself ("Remove x") instead of taking the
+           chip's text as its name. -->
+      <TagsInputItem
+        v-for="domain in model"
+        :key="domain"
+        :value="domain"
+        as="span"
+        class="h-6 gap-1 pl-2"
+      >
         <TagsInputItemText class="text-sm" />
-        <TagsInputItemDelete :aria-label="`Remove ${domain}`" class="mr-0.5 p-0.5" />
+        <TagsInputItemDelete
+          :id="`remove-${domain}`"
+          :aria-label="`Remove ${domain}`"
+          :aria-labelledby="`remove-${domain}`"
+          class="mr-0.5 p-0.5"
+        />
       </TagsInputItem>
       <TagsInputInput
         :id="inputId"

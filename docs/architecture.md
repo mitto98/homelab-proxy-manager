@@ -275,7 +275,7 @@ The Panel listens on its own port, default 81, and is not routed through Traefik
 
 ## 9. Frontend
 
-The Vue SPA lives in `web/`, is served by the Go binary from `embed.FS`, and talks to `/api` only. Server data lives in TanStack Query's cache. Pinia holds only the signed-in user and UI preferences. The theme follows the system setting with a manual toggle. The typed client is generated from the OpenAPI spec, so a mismatch between backend and frontend is a compile error.
+The Vue SPA lives in `web/`, is served by the Go binary from `embed.FS`, and talks to `/api` only. Server data lives in TanStack Query's cache. Pinia holds only the signed-in user and UI preferences. The theme follows the system setting with a manual toggle. The typed client is generated from the OpenAPI spec, so a mismatch between backend and frontend is a compile error. The sidebar shell (variant A of the prototype) lists only pages that exist, from one data array. The router guard sends users to `/setup` while no user exists and to `/login` when signed out. Tailwind is v4. See `docs/development.md` for the scripts, the dev server and the end-to-end test.
 
 ## 10. Packaging and release
 

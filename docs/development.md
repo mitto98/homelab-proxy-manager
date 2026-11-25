@@ -35,6 +35,82 @@ compile error.
   without a body (for example logout). The server answers `415` otherwise.
 - Request bodies are limited to 1 MiB.
 
+## The frontend (`web/`)
+
+Vue 3, TypeScript and Vite, with Tailwind 4 and shadcn-vue components. Versions
+are pinned exactly in `web/package.json`; `web/package-lock.json` is committed.
+Run everything from `web/` after `npm ci`.
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server with hot reload; `/api` is proxied to the Panel |
+| `npm run build` | Type-checks, then builds into `web/dist` (embedded by `web/embed.go`) |
+| `npm run type-check` | `vue-tsc --noEmit` |
+| `npm run lint` / `npm run format` / `npm run format:check` | ESLint (flat config), Prettier |
+| `npm test` | Vitest and Vue Test Utils (jsdom); the network is mocked at `fetch` |
+| `npm run test:e2e` | Playwright against the real binary (see below) |
+| `npm run generate:api` | Regenerates `src/api/schema.d.ts`; use `scripts/generate.sh` |
+
+### Developing against the Go backend
+
+Start the Panel on the port the dev server expects, then the dev server:
+
+```bash
+HPM_DATA_DIR=./data HPM_LISTEN=127.0.0.1:81 go run ./cmd/homelab-proxy-manager
+cd web && npm run dev          # http://localhost:5173, /api proxied to 127.0.0.1:81
+```
+
+Set `HPM_DEV_BACKEND=http://127.0.0.1:8081` to proxy elsewhere. The session
+cookie is `SameSite=Lax` and same-origin through the proxy, so signing in works
+in dev.
+
+### Structure and conventions
+
+- `src/api/client.ts` is the only place that talks to `/api`: an `openapi-fetch`
+  client typed from `schema.d.ts`. It sends `credentials: 'same-origin'`, adds
+  `Content-Type: application/json` to every non-GET request (logout has no body
+  and the server answers 415 without it) and turns `{error, field}` into an
+  `ApiError`.
+- Server data goes through TanStack Query. Pinia holds only the signed-in user
+  (`stores/auth.ts`) and UI preferences (`stores/preferences.ts`, the theme).
+- `src/nav.ts` is the sidebar's list of pages; a new page adds a route in
+  `src/router/index.ts` and an entry there.
+- `src/router/index.ts` has the guard: setup required goes to `/setup`, a
+  signed-out visitor goes to `/login?redirect=...`, and a signed-in user is
+  redirected away from `/login` and `/setup`.
+- The theme follows `prefers-color-scheme` with a system/light/dark override
+  kept in `localStorage` (key `hpm.theme`; storage errors are ignored). The
+  inline script in `index.html` applies it before first paint.
+- shadcn-vue components live in `src/components/ui` as copied source. They are
+  excluded from Prettier and a few lint rules to stay close to upstream. Add
+  more with `npx shadcn-vue@latest add <name>` (the registry host was not
+  reachable when this slice was written, so the first ones were copied from the
+  `unovue/shadcn-vue` repository by hand; `components.json` is the CLI config).
+
+### `web/dist` and the placeholder
+
+`go build` needs at least one file under `web/dist` (`//go:embed all:dist`), so
+`web/dist/placeholder.txt` is tracked and everything else in `dist` is ignored
+by `.gitignore`. Vite is configured with `emptyOutDir: false` and
+`scripts/clean-dist.mjs` empties `dist` before each build except for the
+placeholder. A build therefore never changes `git status`. Do not delete the
+placeholder and do not commit anything else under `web/dist`.
+
+### The end-to-end smoke test
+
+`npm run test:e2e` (`web/e2e/run.mjs`) builds the frontend, builds the Go binary
+so it embeds the real `web/dist`, starts it with a fresh temporary
+`HPM_DATA_DIR` on a free port (no Traefik controller), runs
+`e2e/smoke.spec.ts` and removes the temporary directory. The test covers
+first-run setup, the shell, a deep-link reload through the SPA fallback, sign
+out, sign in and the theme override.
+
+- Browser: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an installed Chromium
+  (default `/opt/pw-browsers/chromium` when that exists). Otherwise install one
+  with `npx playwright install --with-deps chromium`, as CI does.
+- Chromium's socket path must be short: if it aborts with "Socket path too
+  long", point `TMPDIR` at a short directory.
+
 ## Integration tests against a real Traefik
 
 `internal/traefiktest` runs a pinned Traefik (version and tarball hashes in

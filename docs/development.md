@@ -84,8 +84,55 @@ in dev.
 - shadcn-vue components live in `src/components/ui` as copied source. They are
   excluded from Prettier and a few lint rules to stay close to upstream. Add
   more with `npx shadcn-vue@latest add <name>` (the registry host was not
-  reachable when this slice was written, so the first ones were copied from the
-  `unovue/shadcn-vue` repository by hand; `components.json` is the CLI config).
+  reachable when these slices were written, so they were copied from the
+  `unovue/shadcn-vue` repository by hand, `registry/new-york-v4/ui`, with the
+  `cn` and `@/registry/...` imports rewritten to `@/lib/utils` and
+  `@/components/ui/...`; `components.json` is the CLI config). Components in use:
+  button, card, form, input, label, and since slice 2.7 table, badge, sheet,
+  alert-dialog, switch, native-select and tags-input. Sheet and AlertDialog need
+  `tw-animate-css`, imported in `src/style.css`.
+
+### The Proxy Hosts page
+
+`src/pages/HostsPage.vue` lists hosts (`useQuery(['hosts'])`) in
+`components/hosts/HostsTable.vue` and opens `HostSheet.vue`, a right-hand Sheet,
+to add or edit one.
+
+- **Table.** TanStack Table for Vue, v9: a table declares the features it uses
+  (`tableFeatures`), here only global filtering. The search box filters on a
+  Domains column whose text is all the host's domains. Status is `active` or
+  `disabled` from `enabled`; Traefik status arrives in stage 6.
+- **Server data.** `hosts/queries.ts` holds the query and the create, update and
+  delete mutations; each invalidates `['hosts']`, so the table refetches. The form
+  works on its own copy of the host and never writes to the cache.
+- **The form.** `HostForm.vue` uses vee-validate with the Zod schema in
+  `hosts/schema.ts`, which mirrors only the simple rules (at least one domain, a
+  non-empty host, a port from 1 to 65535). The server is the final validator.
+  Save is disabled until `meta.dirty` (vee-validate compares with the initial
+  values, so reverting clears it) and while a request runs. Cancel closes and
+  discards. Esc, the overlay and the close button go through `HostSheet.vue`,
+  which asks "Discard your changes?" when the form is dirty. The form is created
+  when the sheet opens, so closing always discards its state.
+- **Server errors.** A `400` carries the request field it is about and is shown
+  on that field (`setFieldError`; `domains` under the chip input). A `409` (domain
+  used by another host) shows on the domains field. Any other 4xx shows its
+  message, and anything else a generic "Something went wrong" message, in an alert
+  inside the form. The form stays open and keeps its input in every case.
+- **Sections.** Each block of the slide-over is a `components/FormSection.vue`
+  (heading, short description, bordered card). A later slice adds its block by
+  putting another `FormSection` in `HostForm.vue` (the comment marks the spot:
+  SSL in [3.2], Access in [5.3]) with its fields added to the Zod schema, the form
+  values in `hosts/schema.ts` and the summary in `hosts/summary.ts`.
+- **What will happen.** `hosts/summary.ts` (`describeHost`) is a pure function from
+  the form values to plain-language lines; it is unit tested and rendered in its
+  own section.
+- **Chips.** `DomainsInput.vue` wraps the reka-ui TagsInput: Enter, comma, space,
+  blur or paste add a domain, trimmed and lower-cased, without duplicates. The chip
+  is rendered as a `span` because reka's default nests a button in a button.
+- Unit tests render the sheet into `document.body` (it uses portals) and mock
+  `fetch`. The form keeps a field's value when its input is unmounted
+  (`keepValuesOnUnmount`): the skip-TLS-verify switch is only rendered for
+  `https`, and dropping its value would make the schema reject the host.
 
 ### `web/dist` and the placeholder
 
@@ -101,9 +148,12 @@ placeholder and do not commit anything else under `web/dist`.
 `npm run test:e2e` (`web/e2e/run.mjs`) builds the frontend, builds the Go binary
 so it embeds the real `web/dist`, starts it with a fresh temporary
 `HPM_DATA_DIR` on a free port (no Traefik controller), runs
-`e2e/smoke.spec.ts` and removes the temporary directory. The test covers
-first-run setup, the shell, a deep-link reload through the SPA fallback, sign
-out, sign in and the theme override.
+the specs in `e2e/` and removes the temporary directory. The specs share one
+database and run in name order: `01-smoke.spec.ts` covers first-run setup, the
+shell, a deep-link reload through the SPA fallback, sign out, sign in and the
+theme override; `02-hosts.spec.ts` signs in and creates, edits, searches and
+deletes Proxy Hosts, including a `409` for a taken domain and the discard
+confirmation. Add a spec with the next number prefix.
 
 - Browser: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` selects an installed Chromium
   (default `/opt/pw-browsers/chromium` when that exists). Otherwise install one

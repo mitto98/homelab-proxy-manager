@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/mitto98/homelab-proxy-manager/internal/model"
 )
 
 func open(t *testing.T) *Store {
@@ -57,5 +59,39 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 	if _, err := s.SessionUser(ctx, "tok", now); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("deleted session should not resolve, got %v", err)
+	}
+}
+
+func TestSettingsDefaultsAndChecks(t *testing.T) {
+	ctx := context.Background()
+	st, err := Open(ctx, filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	got, err := st.GetSettings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != model.DefaultSettings() {
+		t.Errorf("defaults = %+v, want %+v", got, model.DefaultSettings())
+	}
+
+	want := model.Settings{HTTPPort: 8080, HTTPSPort: 8443, APIPort: 9000}
+	if err := st.UpdateSettings(ctx, want); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = st.GetSettings(ctx); got != want {
+		t.Errorf("after update = %+v, want %+v", got, want)
+	}
+	for _, bad := range []model.Settings{{HTTPPort: 0, HTTPSPort: 443, APIPort: 8899}, {HTTPPort: 80, HTTPSPort: 65536, APIPort: 8899}, {HTTPPort: 80, HTTPSPort: 443, APIPort: -1}} {
+		if err := st.UpdateSettings(ctx, bad); err == nil {
+			t.Errorf("UpdateSettings(%+v) accepted an out-of-range port", bad)
+		}
+	}
+	// A second row must be impossible.
+	if _, err := st.db.ExecContext(ctx, `INSERT INTO settings (id) VALUES (2)`); err == nil {
+		t.Error("a second settings row was accepted")
 	}
 }

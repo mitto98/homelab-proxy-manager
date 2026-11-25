@@ -1,0 +1,12 @@
+http:
+    routers:
+        host-1-http:
+            rule: Host(`v6.example.com`)
+            entryPoints:
+                - web
+            service: host-1
+    services:
+        host-1:
+            loadBalancer:
+                servers:
+                    - url: http://[2001:db8::1]:8080

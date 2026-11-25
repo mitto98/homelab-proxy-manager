@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mitto98/homelab-proxy-manager/internal/apply"
 	"github.com/mitto98/homelab-proxy-manager/internal/auth"
 	"github.com/mitto98/homelab-proxy-manager/internal/store"
 )
@@ -30,23 +31,33 @@ const (
 // errUnauthorized is returned by the session middleware and mapped to a 401.
 var errUnauthorized = errors.New("not signed in")
 
+// Applier runs a change to the stored data through the apply pipeline: the
+// change, rendering, validation and commit are atomic, and Traefik's files are
+// written afterwards. *apply.Applier implements it. Every write to hosts goes
+// through it so the generated files cannot drift from the database.
+type Applier interface {
+	Apply(ctx context.Context, change func(*store.Tx) error) (apply.Result, error)
+}
+
 // Server holds the API's dependencies and implements StrictServerInterface.
 type Server struct {
-	store *store.Store
-	spa   fs.FS
-	now   func() time.Time
+	store   *store.Store
+	applier Applier
+	spa     fs.FS
+	now     func() time.Time
 	// dummyHash is compared against when a username is unknown, so login timing
 	// does not reveal which usernames exist.
 	dummyHash string
 }
 
-// New builds the HTTP handler. spa may be nil, in which case only /api is served.
-func New(st *store.Store, spa fs.FS) (http.Handler, error) {
+// New builds the HTTP handler. Reads use st; changes to hosts go through ap.
+// spa may be nil, in which case only /api is served.
+func New(st *store.Store, ap Applier, spa fs.FS) (http.Handler, error) {
 	dummy, err := auth.HashPassword("dummy-password-for-timing")
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{store: st, spa: spa, now: time.Now, dummyHash: dummy}
+	s := &Server{store: st, applier: ap, spa: spa, now: time.Now, dummyHash: dummy}
 
 	secured, err := securedOperations()
 	if err != nil {

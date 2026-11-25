@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -13,7 +14,9 @@ import (
 	"time"
 
 	"github.com/mitto98/homelab-proxy-manager/internal/api"
+	"github.com/mitto98/homelab-proxy-manager/internal/apply"
 	"github.com/mitto98/homelab-proxy-manager/internal/store"
+	"github.com/mitto98/homelab-proxy-manager/internal/traefik"
 	"github.com/mitto98/homelab-proxy-manager/internal/version"
 	"github.com/mitto98/homelab-proxy-manager/web"
 )
@@ -41,7 +44,22 @@ func run() error {
 	}
 	defer st.Close()
 
-	handler, err := api.New(st, web.Dist())
+	ctrl, err := traefik.FromName(os.Getenv(traefik.ControllerEnv))
+	if err != nil {
+		return err
+	}
+	applier, err := apply.New(st, ctrl, dataDir)
+	if err != nil {
+		return err
+	}
+	// Render everything from the database once, repairing a restored backup or a
+	// deleted file. Failing here is deliberate: the Panel would otherwise show a
+	// state Traefik is not running.
+	if err := applier.Start(ctx); err != nil {
+		return fmt.Errorf("write Traefik config: %w", err)
+	}
+
+	handler, err := api.New(st, applier, web.Dist())
 	if err != nil {
 		return err
 	}

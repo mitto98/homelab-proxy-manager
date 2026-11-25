@@ -58,11 +58,14 @@ type Model struct {
 
 // Dynamic is the content of dynamic/panel.yml.
 type Dynamic struct {
-	HTTP HTTP `yaml:"http"`
+	HTTP HTTP `yaml:"http,omitempty"`
 }
 
-// HTTP is Traefik's "http" section. Empty maps are omitted, so a Panel with no
-// enabled host renders "http: {}", which Traefik accepts.
+// HTTP is Traefik's "http" section. Empty maps are omitted, and with no enabled
+// host the whole section is, so the file is "{}". That form was checked against
+// Traefik 3.7.19: an empty section ("http: {}", or "routers: {}") is rejected with
+// "http cannot be a standalone element", which would freeze every other file in
+// the watched directory.
 type HTTP struct {
 	Routers           map[string]Router    `yaml:"routers,omitempty"`
 	Services          map[string]Service   `yaml:"services,omitempty"`

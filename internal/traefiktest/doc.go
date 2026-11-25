@@ -51,6 +51,12 @@
 // Consequence: the apply pipeline must validate before writing, and must never
 // leave a half-valid file in the directory; one bad file freezes all hosts.
 //
+// Empty dynamic file. A file with no configuration must be empty or "{}" (a
+// comment-only file also loads). "http: {}" and "http:\n  routers: {}" are
+// rejected with "http cannot be a standalone element", which is an invalid file
+// and freezes everything as above. The Panel's renderer emits "{}" when no host
+// is enabled (internal/render).
+//
 // Other details the helpers encode:
 //   - The API is loopback-only only because the "traefik" entry point is declared
 //     as 127.0.0.1:<port>. Without that block Traefik invents ":8080" on every

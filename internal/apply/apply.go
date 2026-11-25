@@ -2,7 +2,7 @@
 // Traefik's files (docs/architecture.md section 7.1). It owns the single writer
 // mutex, and it is the only code that writes the generated files.
 //
-// Failure semantics
+// # Failure semantics
 //
 // Before commit, everything is atomic: if the change function, rendering or
 // validation fails, the transaction rolls back and no file is touched.
@@ -204,4 +204,3 @@ func (a *Applier) publish(dynamic, static []byte) (Result, error) {
 	}
 	return res, nil
 }
-

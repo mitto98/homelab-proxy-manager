@@ -77,7 +77,11 @@ func (s *Server) CreateHost(ctx context.Context, req CreateHostRequestObject) (C
 	if err != nil {
 		return CreateHost400JSONResponse{ErrorJSONResponse(invalidBody(err))}, nil
 	}
-	created, err := s.store.CreateHost(ctx, h)
+	var created model.Host
+	_, err = s.applier.Apply(ctx, func(tx *store.Tx) (e error) {
+		created, e = tx.CreateHost(ctx, h)
+		return e
+	})
 	var taken *store.DomainTakenError
 	if errors.As(err, &taken) {
 		return CreateHost409JSONResponse(invalidBody(err)), nil
@@ -104,7 +108,11 @@ func (s *Server) UpdateHost(ctx context.Context, req UpdateHostRequestObject) (U
 	if err != nil {
 		return UpdateHost400JSONResponse{ErrorJSONResponse(invalidBody(err))}, nil
 	}
-	updated, err := s.store.UpdateHost(ctx, h)
+	var updated model.Host
+	_, err = s.applier.Apply(ctx, func(tx *store.Tx) (e error) {
+		updated, e = tx.UpdateHost(ctx, h)
+		return e
+	})
 	var taken *store.DomainTakenError
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -118,7 +126,7 @@ func (s *Server) UpdateHost(ctx context.Context, req UpdateHostRequestObject) (U
 }
 
 func (s *Server) DeleteHost(ctx context.Context, req DeleteHostRequestObject) (DeleteHostResponseObject, error) {
-	err := s.store.DeleteHost(ctx, req.Id)
+	_, err := s.applier.Apply(ctx, func(tx *store.Tx) error { return tx.DeleteHost(ctx, req.Id) })
 	if errors.Is(err, store.ErrNotFound) {
 		return DeleteHost404JSONResponse(hostNotFound), nil
 	}

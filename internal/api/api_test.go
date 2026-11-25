@@ -10,10 +10,20 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/mitto98/homelab-proxy-manager/internal/apply"
 	"github.com/mitto98/homelab-proxy-manager/internal/store"
+	"github.com/mitto98/homelab-proxy-manager/internal/traefik"
 )
 
 func newServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	ts, _ := newServerAt(t, filepath.Join(t.TempDir(), "data"))
+	return ts
+}
+
+// newServerAt serves the API with a real Applier writing under dataDir, with the
+// "none" controller. It also returns the store for assertions.
+func newServerAt(t *testing.T, dataDir string, opts ...apply.Option) (*httptest.Server, *store.Store) {
 	t.Helper()
 	st, err := store.Open(context.Background(), filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
@@ -21,13 +31,17 @@ func newServer(t *testing.T) *httptest.Server {
 	}
 	t.Cleanup(func() { st.Close() })
 	spa := fstest.MapFS{"index.html": {Data: []byte("<html>spa</html>")}}
-	h, err := New(st, spa)
+	ap, err := apply.New(st, traefik.None{}, dataDir, opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(st, ap, spa)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
-	return ts
+	return ts, st
 }
 
 func do(t *testing.T, c *http.Client, method, url, body string) *http.Response {

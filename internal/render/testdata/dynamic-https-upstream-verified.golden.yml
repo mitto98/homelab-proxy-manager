@@ -1,0 +1,12 @@
+http:
+    routers:
+        host-2-http:
+            rule: Host(`secure.example.com`)
+            entryPoints:
+                - web
+            service: host-2
+    services:
+        host-2:
+            loadBalancer:
+                servers:
+                    - url: https://secure.lan:443

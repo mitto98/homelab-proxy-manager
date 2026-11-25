@@ -1,0 +1,12 @@
+http:
+    routers:
+        host-7-http:
+            rule: Host(`nas.example.com`) || Host(`www.nas.example.com`) || Host(`files.example.org`)
+            entryPoints:
+                - web
+            service: host-7
+    services:
+        host-7:
+            loadBalancer:
+                servers:
+                    - url: http://nas.lan:5000

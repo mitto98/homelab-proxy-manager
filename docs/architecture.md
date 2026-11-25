@@ -97,6 +97,7 @@ The first user is created by the first-run setup flow and is an admin. (Whether 
 - Proxy fields: `upstream_scheme` (`http` or `https`), `upstream_host`, `upstream_port`, `upstream_skip_tls_verify`
 - Redirect fields: `redirect_target`, `redirect_status_code`, `redirect_preserve_path`
 - Options: `force_https`, `hsts_enabled`, `hsts_include_subdomains`
+- The upstream columns are nullable so Redirection Hosts can share the table; a `CHECK` makes `upstream_scheme`, `upstream_host` and `upstream_port` mandatory when `kind` is `proxy`. Domains keep the order the user gave them (insertion order of `host_domains`).
 - References, all nullable: `acme_resolver_id`, `custom_certificate_id` (a check constraint allows at most one of them), `access_list_id`
 
 **host_domains**: `id`, `host_id`, `domain` with a unique constraint across all hosts, so a domain can never be both proxied and redirected or belong to two hosts. A domain may start with `*.` (see section 7.5).
@@ -110,7 +111,7 @@ The first user is created by the first-run setup flow and is an admin. (Whether 
 **access_list_rules**: `id`, `access_list_id`, `cidr`. Allow-only, because Traefik has no deny-list middleware.
 An Access List that any host uses cannot be deleted.
 
-**settings**: one row. Default ACME email, default resolver, Panel listen port, HTTP and HTTPS entrypoint ports, Traefik API loopback port, DNS provider name and encrypted DNS credentials (see 7.6).
+**settings**: one row (`id` is always 1, enforced by a `CHECK`), with typed columns, each stage adding its own by migration. Today: `http_port` (default 80), `https_port` (default 443) and `api_port` (default 8899), the loopback port of Traefik's API, all checked to 1..65535. 8899 and not Traefik's own 8080 because upstreams in a homelab often use 8080. Planned: default ACME email, default resolver, Panel listen port, DNS provider name and encrypted DNS credentials (see 7.6).
 
 **Secrets at rest.** Custom certificate keys and DNS credentials are encrypted with AES-GCM. The key is generated at first run into `secret.key` (mode 0600) in the data directory. Losing that file makes those secrets unrecoverable, so backups must include it.
 
@@ -133,6 +134,8 @@ internal/
 
 ### TraefikController
 
+The implementation is chosen at startup by the environment variable `HPM_TRAEFIK_CONTROLLER`. The default and only value today is `none`; an unknown value stops the Panel at startup with a clear message, so a typo cannot silently turn restarts off. Slice 2.8 adds `s6`.
+
 ```go
 type TraefikController interface {
     // Called when the static config or env file content changed.
@@ -141,7 +144,7 @@ type TraefikController interface {
 ```
 
 - Docker implementation: calls `s6-svc -r` on the Traefik service.
-- systemd implementation: does nothing, because a systemd `.path` unit watches `traefik.yml` and `traefik.env` and restarts the Traefik unit itself. The Panel needs no privileges.
+- `none` (the default; also used for development and tests) and systemd: do nothing, because a systemd `.path` unit watches `traefik.yml` and `traefik.env` and restarts the Traefik unit itself. The Panel needs no privileges.
 
 ## 7. Traefik integration
 
@@ -156,7 +159,11 @@ Every change to hosts, certificates, resolvers, Access Lists or settings goes th
 5. Write each file to a temporary name, then rename it into place.
 6. If the static config or env file content hash changed, call `TraefikController.Restart`.
 
-At Panel startup the pipeline renders everything once from the database, so a restored backup or hand-deleted file is repaired automatically.
+At Panel startup (`Applier.Start`) the pipeline renders everything once from the database, so a restored backup or hand-deleted or corrupted file is repaired automatically. A failure there is fatal: the Panel does not serve a state it cannot publish. Start restarts Traefik too if the static config on disk differs.
+
+**Failure semantics.** Until commit everything is atomic: a failing change, rendering or validation rolls back, stores nothing and touches no file (validation matters because one invalid file in `dynamic/` freezes all Traefik reloads). After commit the database is the truth and files are derived. A failure to write them is returned as an error although the change is stored, and the next apply or the next Panel start rewrites every file whose content differs. A failed `Restart` does not fail the request: it is logged and reported in the apply result, and the new static config is already on disk. Files are only rewritten when their content differs, so a change that does not alter a file does not wake Traefik's watcher.
+
+The `traefik.yml` content comparison is against the file currently on disk; a missing file counts as changed.
 
 ### 7.2 Files
 
@@ -168,6 +175,8 @@ At Panel startup the pipeline renders everything once from the database, so a re
 | `acme.json` | Written by Traefik, holds issued certificates | Panel reads it, never writes |
 
 One dynamic file means every reload sees a consistent snapshot; writing one file per host would expose half-regenerated states.
+
+**Data directory layout** (`HPM_DATA_DIR`): `traefik.yml` at its root and `dynamic/panel.yml`. Directories are mode 0750 and generated files 0640. Only `panel.yml` is owned by the Panel; other files in `dynamic/` are never touched or deleted. Files are written to a temporary name in the same directory that ends in `.tmp` (never `.yml`, `.yaml` or `.toml`, which Traefik would load half-written) and renamed into place.
 
 ### 7.3 Dynamic config shape
 
@@ -207,6 +216,7 @@ http:
 ```
 
 Rules:
+- With no enabled host the file is `{}`. Checked against Traefik 3.7.19: `http: {}` is rejected ("http cannot be a standalone element") and would freeze all reloads.
 - Disabled hosts are left out of the file entirely.
 - A host without TLS gets only a `web` router.
 - An Access List renders an `ipAllowList` (only if it has rules) and a `basicAuth` middleware (only if it has users). Both must pass.
@@ -216,7 +226,7 @@ Rules:
 ### 7.4 Static config
 
 Generated from `settings` and `acme_resolvers`:
-- Entrypoints `web` and `websecure` on the configured ports, plus a loopback-only `traefik` entrypoint for the API.
+- Entrypoints `web` and `websecure` on the configured ports, plus the `traefik` entrypoint for the API, declared as `127.0.0.1:<api_port>`. Without that explicit address Traefik would serve its unauthenticated API on all interfaces. `api.insecure` is true and `api.dashboard` false.
 - `providers.file.directory` pointing at `dynamic/` with `watch: true`.
 - One `certificatesResolvers` entry per `acme_resolvers` row, named `resolver-<id>`, with `storage` set to `acme.json`, the challenge type, the email, and the staging CA when `use_staging` is set.
 
@@ -257,13 +267,15 @@ All routes are under `/api` and defined in `api/openapi.yaml`.
 | Settings | `GET/PUT /settings` |
 | System | `GET /status` (Traefik reachable, version, warnings) |
 
+Errors share one JSON shape, `{"error": "message"}`, with an optional `field` naming the request field a validation error is about (for example `domains`). A domain already used by another host is a `409` that names the domain.
+
 Authentication is local users with passwords, cookie sessions and a first-run admin setup. Roles are `admin` (everything) and `viewer` (read-only). Authorization is enforced in one middleware, not per handler.
 
 The Panel listens on its own port, default 81, and is not routed through Traefik by default. A user who wants a domain and TLS for the Panel creates an ordinary Proxy Host pointing at it. If Traefik fails, the Panel is still reachable.
 
 ## 9. Frontend
 
-The Vue SPA lives in `web/`, is served by the Go binary from `embed.FS`, and talks to `/api` only. Server data lives in TanStack Query's cache. Pinia holds only the signed-in user and UI preferences. The theme follows the system setting with a manual toggle. The typed client is generated from the OpenAPI spec, so a mismatch between backend and frontend is a compile error.
+The Vue SPA lives in `web/`, is served by the Go binary from `embed.FS`, and talks to `/api` only. Server data lives in TanStack Query's cache. Pinia holds only the signed-in user and UI preferences. The theme follows the system setting with a manual toggle. The typed client is generated from the OpenAPI spec, so a mismatch between backend and frontend is a compile error. The sidebar shell (variant A of the prototype) lists only pages that exist, from one data array. The router guard sends users to `/setup` while no user exists and to `/login` when signed out. Tailwind is v4. See `docs/development.md` for the scripts, the dev server and the end-to-end test.
 
 ## 10. Packaging and release
 
@@ -317,5 +329,5 @@ Stages 1 and 2 give a working end-to-end slice early. The Docker path comes firs
 These were deliberately left for later and none blocks starting the build:
 
 
-- **Traefik in Debian, Fedora and EPEL repositories**: not verifiable from the research sandbox. It only matters if we later want a package `Depends:`.
+- **Traefik in Debian, Fedora and EPEL repositories**: settled. None ship a Traefik package, so the external-binary decision stands with no `Depends:` (see `docs/research/traefik-distro-packages.md`).
 - **Confirm at build time**: the `tls.domains` shape for wildcard hosts, whether custom-certificate PEMs can be inline, and the redirect middleware for Redirection Hosts.

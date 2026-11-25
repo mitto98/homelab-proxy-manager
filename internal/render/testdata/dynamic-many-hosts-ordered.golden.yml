@@ -1,0 +1,111 @@
+http:
+    routers:
+        host-1-http:
+            rule: Host(`h1.example.com`)
+            entryPoints:
+                - web
+            service: host-1
+        host-2-http:
+            rule: Host(`h2.example.com`)
+            entryPoints:
+                - web
+            service: host-2
+        host-3-http:
+            rule: Host(`h3.example.com`)
+            entryPoints:
+                - web
+            service: host-3
+        host-4-http:
+            rule: Host(`h4.example.com`)
+            entryPoints:
+                - web
+            service: host-4
+        host-5-http:
+            rule: Host(`h5.example.com`)
+            entryPoints:
+                - web
+            service: host-5
+        host-6-http:
+            rule: Host(`h6.example.com`)
+            entryPoints:
+                - web
+            service: host-6
+        host-7-http:
+            rule: Host(`h7.example.com`)
+            entryPoints:
+                - web
+            service: host-7
+        host-8-http:
+            rule: Host(`h8.example.com`)
+            entryPoints:
+                - web
+            service: host-8
+        host-9-http:
+            rule: Host(`h9.example.com`)
+            entryPoints:
+                - web
+            service: host-9
+        host-10-http:
+            rule: Host(`h10.example.com`)
+            entryPoints:
+                - web
+            service: host-10
+        host-11-http:
+            rule: Host(`h11.example.com`)
+            entryPoints:
+                - web
+            service: host-11
+        host-12-http:
+            rule: Host(`h12.example.com`)
+            entryPoints:
+                - web
+            service: host-12
+    services:
+        host-1:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8001
+        host-2:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8002
+        host-3:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8003
+        host-4:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8004
+        host-5:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8005
+        host-6:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8006
+        host-7:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8007
+        host-8:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8008
+        host-9:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8009
+        host-10:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8010
+        host-11:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8011
+        host-12:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.5:8012

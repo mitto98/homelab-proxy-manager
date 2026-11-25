@@ -1,0 +1,21 @@
+http:
+    routers:
+        host-1-http:
+            rule: Host(`on.example.com`)
+            entryPoints:
+                - web
+            service: host-1
+        host-3-http:
+            rule: Host(`on2.example.com`)
+            entryPoints:
+                - web
+            service: host-3
+    services:
+        host-1:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.1:80
+        host-3:
+            loadBalancer:
+                servers:
+                    - url: http://10.0.0.3:80

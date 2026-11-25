@@ -1,0 +1,17 @@
+global:
+    checkNewVersion: false
+    sendAnonymousUsage: false
+entryPoints:
+    traefik:
+        address: 127.0.0.1:9100
+    web:
+        address: :8080
+    websecure:
+        address: :8443
+providers:
+    file:
+        directory: /data/dynamic
+        watch: true
+api:
+    insecure: true
+    dashboard: false

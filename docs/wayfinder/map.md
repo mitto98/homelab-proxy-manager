@@ -76,6 +76,7 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
   - The DNS provider is a name plus key/value environment pairs, validated against lego's provider list, with a few UI presets. Variable names must match `[A-Z0-9_]+` and cannot be `PATH`, `LD_*` or `TRAEFIK_*`.
   - Each resolver has a Let's Encrypt staging toggle.
   - The Panel reads `acme.json` read-only, best effort, to show certificate domains and expiry, and shows "unknown" if parsing fails.
+- Distro Traefik packages: none exist in Debian, Ubuntu, Fedora or EPEL (8, 9, 10), so the external-binary decision stands, with no `Depends:`. The post-install message must not suggest `apt install traefik` or `dnf install traefik`. Debian has an open ITP (#983289), unresolved. Caveats in `docs/research/traefik-distro-packages.md`.
 - Backup and signing:
   - A backup is exactly `panel.db`, `secret.key` and `acme.json`; everything else is regenerated.
   - The binary has `backup <file>` and `restore <file>` subcommands producing a single `.tar.gz`. SQLite is copied with its online backup mechanism, so backup works while the Panel runs. Restore refuses to run while the Panel is running. The same commands work in Docker through `docker exec`.
@@ -84,7 +85,7 @@ A locked tech stack and an architecture spec, ready to hand off for building. No
 
 ## Not yet specified
 
-- Debian, Fedora and EPEL package availability for Traefik, which was not verifiable from the sandbox.
+_Nothing left. The map is complete._
 
 ## Out of scope
 

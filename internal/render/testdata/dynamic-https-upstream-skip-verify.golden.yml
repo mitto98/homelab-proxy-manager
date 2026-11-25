@@ -1,0 +1,16 @@
+http:
+    routers:
+        host-3-http:
+            rule: Host(`unifi.example.com`)
+            entryPoints:
+                - web
+            service: host-3
+    services:
+        host-3:
+            loadBalancer:
+                servers:
+                    - url: https://10.0.0.9:8443
+                serversTransport: skip-tls-verify
+    serversTransports:
+        skip-tls-verify:
+            insecureSkipVerify: true

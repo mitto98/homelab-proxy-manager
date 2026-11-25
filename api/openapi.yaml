@@ -3,8 +3,12 @@ info:
   title: homelab-proxy-manager API
   version: 0.1.0
   description: |
-    JSON API of the Panel. All state-changing requests must send
-    `Content-Type: application/json`. Authentication is a session cookie
+    JSON API of the Panel. This file is the single source of truth: the Go
+    server types and handlers (`internal/api/api.gen.go`) and the TypeScript
+    client types (`web/src/api/schema.d.ts`) are generated from it.
+
+    All state-changing requests must send `Content-Type: application/json`,
+    even when they have no body. Authentication is a session cookie
     (`hpm_session`) set by `/auth/login` or `/setup`.
 servers:
   - url: /api
@@ -19,6 +23,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Status" }
+        "500": { $ref: "#/components/responses/Error" }
   /setup:
     post:
       operationId: setup
@@ -31,11 +36,16 @@ paths:
       responses:
         "201":
           description: Admin created and signed in
+          headers:
+            Set-Cookie:
+              description: The `hpm_session` session cookie
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         "400": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/login:
     post:
       operationId: login
@@ -47,19 +57,28 @@ paths:
       responses:
         "200":
           description: Signed in
+          headers:
+            Set-Cookie:
+              description: The `hpm_session` session cookie
+              schema: { type: string }
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/logout:
     post:
       operationId: logout
-      requestBody:
-        content:
-          application/json:
-            schema: { type: object }
+      summary: Sign out; sends no body but still needs the JSON content type
       responses:
-        "204": { description: Signed out }
+        "204":
+          description: Signed out
+          headers:
+            Set-Cookie:
+              description: Expires the `hpm_session` cookie
+              schema: { type: string }
+        "500": { $ref: "#/components/responses/Error" }
   /auth/me:
     get:
       operationId: getMe
@@ -71,6 +90,87 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+  /hosts:
+    get:
+      operationId: listHosts
+      summary: List all hosts, oldest first
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: The hosts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Host" }
+        "401": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+    post:
+      operationId: createHost
+      summary: Create a Proxy Host
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HostInput" }
+      responses:
+        "201":
+          description: The created host
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Host" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+  /hosts/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: integer, format: int64, minimum: 1 }
+    get:
+      operationId: getHost
+      security: [{ session: [] }]
+      responses:
+        "200":
+          description: The host
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Host" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+    put:
+      operationId: updateHost
+      summary: Replace a host's fields and domains
+      security: [{ session: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/HostInput" }
+      responses:
+        "200":
+          description: The updated host
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Host" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
+    delete:
+      operationId: deleteHost
+      security: [{ session: [] }]
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "500": { $ref: "#/components/responses/Error" }
 components:
   securitySchemes:
     session:
@@ -103,8 +203,47 @@ components:
         id: { type: integer, format: int64 }
         username: { type: string }
         role: { type: string, enum: [admin, viewer] }
+    HostInput:
+      description: |
+        The editable fields of a Proxy Host. Domains are lower-cased by the
+        server. `upstreamSkipTlsVerify` only applies to `https` upstreams and is
+        cleared for `http`.
+      type: object
+      required: [domains, upstreamScheme, upstreamHost, upstreamPort]
+      properties:
+        domains:
+          type: array
+          minItems: 1
+          items: { type: string }
+          description: Public domain names, in the order shown to users. Each must be unique across all hosts.
+        upstreamScheme: { type: string, enum: [http, https] }
+        upstreamHost:
+          type: string
+          description: A host name or IP address (no scheme, port or path)
+        upstreamPort: { type: integer, minimum: 1, maximum: 65535 }
+        upstreamSkipTlsVerify: { type: boolean, default: false }
+        enabled: { type: boolean, default: true }
+    Host:
+      type: object
+      required: [id, kind, enabled, domains, upstreamScheme, upstreamHost, upstreamPort, upstreamSkipTlsVerify, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        kind: { type: string, enum: [proxy] }
+        enabled: { type: boolean }
+        domains:
+          type: array
+          items: { type: string }
+        upstreamScheme: { type: string, enum: [http, https] }
+        upstreamHost: { type: string }
+        upstreamPort: { type: integer }
+        upstreamSkipTlsVerify: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     Error:
       type: object
       required: [error]
       properties:
         error: { type: string }
+        field:
+          type: string
+          description: For validation errors, the request field the message is about (for example `domains` or `upstreamPort`)

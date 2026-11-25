@@ -1,0 +1,35 @@
+http:
+    routers:
+        host-3-http:
+            rule: Host(`a.example.com`)
+            entryPoints:
+                - web
+            service: host-3
+        host-4-http:
+            rule: Host(`b.example.com`)
+            entryPoints:
+                - web
+            service: host-4
+        host-5-http:
+            rule: Host(`c.example.com`)
+            entryPoints:
+                - web
+            service: host-5
+    services:
+        host-3:
+            loadBalancer:
+                servers:
+                    - url: https://10.0.0.9:8443
+                serversTransport: skip-tls-verify
+        host-4:
+            loadBalancer:
+                servers:
+                    - url: https://10.0.0.10:8443
+                serversTransport: skip-tls-verify
+        host-5:
+            loadBalancer:
+                servers:
+                    - url: https://ok.lan:443
+    serversTransports:
+        skip-tls-verify:
+            insecureSkipVerify: true

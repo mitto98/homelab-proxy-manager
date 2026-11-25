@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Enter/leave animations used by the shadcn-vue Sheet and AlertDialog. */
+@import 'tw-animate-css';
 
 /* Dark mode is the `.dark` class on <html>, set by the theme preference. */
 @custom-variant dark (&:is(.dark *));

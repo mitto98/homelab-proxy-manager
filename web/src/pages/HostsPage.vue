@@ -1,6 +1,15 @@
+<script setup lang="ts">
+import HostsTable from '@/components/hosts/HostsTable.vue'
+import { useHostsQuery } from '@/hosts/queries'
+
+const { data: hosts, isPending, error } = useHostsQuery()
+</script>
+
 <template>
-  <!-- Placeholder: slice [2.7] replaces this page with the Proxy Hosts list. -->
-  <div class="text-muted-foreground rounded-lg border border-dashed p-8 text-sm">
-    Placeholder. The Proxy Hosts list arrives in the next slice.
-  </div>
+  <!-- Plain loading and error text; the polished states are slice [6.4]. -->
+  <p v-if="isPending" class="text-muted-foreground text-sm">Loading proxy hosts...</p>
+  <p v-else-if="error" role="alert" class="text-destructive text-sm">
+    Could not load the proxy hosts: {{ error.message }}
+  </p>
+  <HostsTable v-else :hosts="hosts ?? []" />
 </template>

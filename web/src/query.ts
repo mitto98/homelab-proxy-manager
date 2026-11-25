@@ -2,6 +2,7 @@ import { QueryClient } from '@tanstack/vue-query'
 import type { Api } from '@/api/client'
 
 export const statusKey = ['status'] as const
+export const hostsKey = ['hosts'] as const
 
 export function createQueryClient() {
   return new QueryClient({

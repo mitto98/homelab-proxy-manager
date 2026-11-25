@@ -4,6 +4,8 @@ import type { components, paths } from './schema'
 export type User = components['schemas']['User']
 export type Credentials = components['schemas']['Credentials']
 export type Status = components['schemas']['Status']
+export type Host = components['schemas']['Host']
+export type HostInput = components['schemas']['HostInput']
 
 /** An error answer from the API (`{error, field?}`), or a failure to get one. */
 export class ApiError extends Error {
@@ -78,6 +80,11 @@ export function createApi(fetchImpl: typeof fetch = (...args) => globalThis.fetc
     setup: (body: Credentials) => run(client.POST('/setup', { body })),
     login: (body: Credentials) => run(client.POST('/auth/login', { body })),
     logout: () => run(client.POST('/auth/logout')),
+    listHosts: () => run(client.GET('/hosts')),
+    createHost: (body: HostInput) => run(client.POST('/hosts', { body })),
+    updateHost: (id: number, body: HostInput) =>
+      run(client.PUT('/hosts/{id}', { params: { path: { id } }, body })),
+    deleteHost: (id: number) => run(client.DELETE('/hosts/{id}', { params: { path: { id } } })),
   }
 }
 

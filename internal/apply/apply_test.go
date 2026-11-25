@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"go.yaml.in/yaml/v4"
 
@@ -434,6 +435,63 @@ func TestConcurrentAppliesAreSerialized(t *testing.T) {
 	for i := range n {
 		if !strings.Contains(dyn, fmt.Sprintf("h%d.example.com", i)) {
 			t.Errorf("host %d missing from the final panel.yml", i)
+		}
+	}
+}
+
+// The database serialises transactions on its single connection, so the mutex
+// matters for what happens after commit: a second apply must not render and
+// write while the first is still writing, or the older render could land last
+// and leave the files stale.
+func TestMutexCoversTheFileWrites(t *testing.T) {
+	e := setup(t)
+	e.create(t, "first.example.com") // so later writes go through the hook
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	e.a.afterTempWritten = func(string) {
+		once.Do(func() {
+			close(blocked)
+			<-release
+		})
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		e.create(t, "second.example.com") // blocks inside its file write
+	}()
+	<-blocked
+
+	var secondRan atomic.Bool
+	third := make(chan struct{})
+	go func() {
+		defer close(third)
+		_, err := e.a.Apply(context.Background(), func(tx *store.Tx) error {
+			secondRan.Store(true)
+			_, err := tx.CreateHost(context.Background(), newHost("third.example.com"))
+			return err
+		})
+		if err != nil {
+			t.Error(err)
+		}
+	}()
+	select {
+	case <-third:
+		t.Fatal("a second apply finished while the first was still writing files")
+	case <-time.After(300 * time.Millisecond):
+	}
+	if secondRan.Load() {
+		t.Error("a second change function ran while the first apply was still writing files")
+	}
+	close(release)
+	<-done
+	<-third
+	dyn := e.read(t, e.dynamicPath())
+	for _, d := range []string{"first", "second", "third"} {
+		if !strings.Contains(dyn, d+".example.com") {
+			t.Errorf("%s missing from the final panel.yml:\n%s", d, dyn)
 		}
 	}
 }

@@ -50,3 +50,21 @@ does with invalid files, the API with the dashboard off, and the `@file` names.
 - To bump Traefik, change `Version` and both hashes in `pin.go` (take them from
   the release's `traefik_v<version>_checksums.txt`, and compare with a second
   download) in one pull request, together with the Docker image tag.
+
+## Traefik configuration and the apply pipeline
+
+Every change to hosts goes through `internal/apply`, which renders
+`<data>/traefik.yml` and `<data>/dynamic/panel.yml` (see `docs/architecture.md`
+section 7) with the pure functions in `internal/render`.
+
+- `HPM_DATA_DIR` (default `./data`) holds `panel.db` and the generated files.
+- `HPM_TRAEFIK_CONTROLLER` selects how Traefik is restarted when `traefik.yml`
+  changes. Only `none` exists so far (the default); the Panel runs without Traefik
+  installed.
+- To try the output with a real Traefik, run the Panel and point Traefik at the
+  file: `traefik --configFile=data/traefik.yml`.
+- Renderer golden files live in `internal/render/testdata`. After an intended
+  output change run `go test ./internal/render -update` and review the diff.
+- `internal/api/traefik_test.go` creates hosts through the API and sends requests
+  through a real Traefik (skipped without the binary, failing under
+  `HPM_REQUIRE_TRAEFIK=1`).

@@ -15,7 +15,7 @@ export interface Recorded {
   body: unknown
 }
 
-type Handler = (req: Recorded) => Response
+type Handler = (req: Recorded) => Response | Promise<Response>
 export const json = (status: number, body?: unknown) =>
   new Response(body === undefined ? null : JSON.stringify(body), {
     status,
